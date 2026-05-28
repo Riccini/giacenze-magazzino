@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aggiorna Giacenze</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1rem}
+.card{background:#fff;border-radius:12px;padding:2rem;max-width:480px;width:100%;box-shadow:0 2px 12px rgba(0,0,0,0.08)}
+h1{font-size:20px;font-weight:600;margin-bottom:0.25rem}
+.sub{font-size:13px;color:#666;margin-bottom:2rem;line-height:1.5}
+.step{margin-bottom:1.5rem}
+.step-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.7px;color:#999;margin-bottom:6px}
+.upload-zone{border:2px dashed #e0e0e0;border-radius:10px;padding:1.5rem;text-align:center;cursor:pointer;transition:all 0.15s;background:#fafafa}
+.upload-zone:hover{border-color:#aaa;background:#f0f0f0}
+.upload-zone p{font-size:14px;color:#666;line-height:1.5}
+.upload-zone p strong{color:#1a1a1a}
+.upload-zone.loaded{border-color:#0F6E56;background:#E1F5EE}
+.upload-zone.loaded p{color:#085041}
+#file-input{display:none}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:14px;background:#1a1a1a;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;transition:background 0.12s;text-decoration:none}
+.btn:hover{background:#333}
+.btn:disabled{background:#ccc;cursor:not-allowed}
+.status{margin-top:1.25rem;padding:12px 14px;border-radius:8px;font-size:13px;display:none;line-height:1.5}
+.status.info{background:#EEF2FF;color:#1e3a8a}
+.status.success{background:#E1F5EE;color:#085041}
+.status.error{background:#FAECE7;color:#4A1B0C}
+.istruzioni{background:#f5f5f5;border-radius:8px;padding:12px 14px;font-size:13px;color:#444;line-height:1.8;margin-top:1rem;display:none}
+.istruzioni strong{color:#1a1a1a}
+.istruzioni ol{margin-left:1.2rem}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🔄 Aggiorna Giacenze</h1>
+  <p class="sub">Carica il file Excel da AdHoc, genera il nuovo file e caricalo su GitHub.</p>
+
+  <div class="step">
+    <p class="step-label">1. Seleziona il file Excel</p>
+    <label for="file-input" class="upload-zone" id="drop-zone">
+      <p><strong>Clicca qui per selezionare il file</strong><br>Stampa_saldi_articoli.xlsx</p>
+      <input type="file" id="file-input" accept=".xlsx,.xls" style="display:none">
+    </label>
+  </div>
+
+  <div class="step">
+    <p class="step-label">2. Genera e scarica</p>
+    <button class="btn" id="generate-btn" disabled>Genera index.html aggiornato</button>
+  </div>
+
+  <div class="status" id="status"></div>
+  <div class="istruzioni" id="istruzioni">
+    <strong>Adesso carica il file su GitHub:</strong>
+    <ol>
+      <li>Vai su <strong>github.com/riccini/giacenze-magazzino</strong></li>
+      <li>Clicca su <strong>index.html</strong></li>
+      <li>Clicca i tre puntini <strong>...</strong> → <strong>Upload new version</strong></li>  
+      <li>Seleziona il file appena scaricato</li>
+      <li>Clicca <strong>Commit changes</strong></li>
+    </ol>
+    <p style="margin-top:8px">I rappresentanti vedranno i dati aggiornati in 1-2 minuti.</p>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+var TEMPLATE_B64 =  + template_b64 + ;
+
+var LISTA = {
+'19C040':{'macro':'Corrugar','tipo':'Rotoli','diam':'40'},'19P040':{'macro':'Corrugar','tipo':'Rotoli','diam':'40'},'19P040M':{'macro':'Corrugar','tipo':'Rotoli','diam':'40'},'19P040MN':{'macro':'Corrugar','tipo':'Rotoli','diam':'40'},'19P040N':{'macro':'Corrugar','tipo':'Rotoli','diam':'40'},'19P040R':{'macro':'Corrugar','tipo':'Rotoli','diam':'40'},'31NT040':{'macro':'Corrugar','tipo':'Rotoli','diam':'40'},'31NT040M':{'macro':'Corrugar','tipo':'Rotoli','diam':'40'},'19C050':{'macro':'Corrugar','tipo':'Rotoli','diam':'50'},'19P050':{'macro':'Corrugar','tipo':'Rotoli','diam':'50'},'19P050M':{'macro':'Corrugar','tipo':'Rotoli','diam':'50'},'19P050MN':{'macro':'Corrugar','tipo':'Rotoli','diam':'50'},'19P050N':{'macro':'Corrugar','tipo':'Rotoli','diam':'50'},'19P050R':{'macro':'Corrugar','tipo':'Rotoli','diam':'50'},'19P050RM':{'macro':'Corrugar','tipo':'Rotoli','diam':'50'},'19P050V':{'macro':'Corrugar','tipo':'Rotoli','diam':'50'},'31NT050':{'macro':'Corrugar','tipo':'Rotoli','diam':'50'},'31NT050M':{'macro':'Corrugar','tipo':'Rotoli','diam':'50'},'19C063':{'macro':'Corrugar','tipo':'Rotoli','diam':'63'},'19P063':{'macro':'Corrugar','tipo':'Rotoli','diam':'63'},'19P063M':{'macro':'Corrugar','tipo':'Rotoli','diam':'63'},'19P063N':{'macro':'Corrugar','tipo':'Rotoli','diam':'63'},'19P063R':{'macro':'Corrugar','tipo':'Rotoli','diam':'63'},'19P063V':{'macro':'Corrugar','tipo':'Rotoli','diam':'63'},'19P063VF':{'macro':'Corrugar','tipo':'Rotoli','diam':'63'},'31NT063':{'macro':'Corrugar','tipo':'Rotoli','diam':'63'},'31NT063M':{'macro':'Corrugar','tipo':'Rotoli','diam':'63'},'19C075':{'macro':'Corrugar','tipo':'Rotoli','diam':'75'},'19P075':{'macro':'Corrugar','tipo':'Rotoli','diam':'75'},'19P075M':{'macro':'Corrugar','tipo':'Rotoli','diam':'75'},'19P075MN':{'macro':'Corrugar','tipo':'Rotoli','diam':'75'},'19P075N':{'macro':'Corrugar','tipo':'Rotoli','diam':'75'},'19P075R':{'macro':'Corrugar','tipo':'Rotoli','diam':'75'},'19P075V':{'macro':'Corrugar','tipo':'Rotoli','diam':'75'},'31NT075':{'macro':'Corrugar','tipo':'Rotoli','diam':'75'},'31NT075M':{'macro':'Corrugar','tipo':'Rotoli','diam':'75'},'19C090':{'macro':'Corrugar','tipo':'Rotoli','diam':'90'},'19P090':{'macro':'Corrugar','tipo':'Rotoli','diam':'90'},'19P090M':{'macro':'Corrugar','tipo':'Rotoli','diam':'90'},'19P090N':{'macro':'Corrugar','tipo':'Rotoli','diam':'90'},'19P090R':{'macro':'Corrugar','tipo':'Rotoli','diam':'90'},'19P090V':{'macro':'Corrugar','tipo':'Rotoli','diam':'90'},'31NT090':{'macro':'Corrugar','tipo':'Rotoli','diam':'90'},'19C110':{'macro':'Corrugar','tipo':'Rotoli','diam':'110'},'19P110':{'macro':'Corrugar','tipo':'Rotoli','diam':'110'},'19P110M':{'macro':'Corrugar','tipo':'Rotoli','diam':'110'},'19P110N':{'macro':'Corrugar','tipo':'Rotoli','diam':'110'},'19P110R':{'macro':'Corrugar','tipo':'Rotoli','diam':'110'},'19P110V':{'macro':'Corrugar','tipo':'Rotoli','diam':'110'},'31NT110':{'macro':'Corrugar','tipo':'Rotoli','diam':'110'},'31NT110M':{'macro':'Corrugar','tipo':'Rotoli','diam':'110'},'19C125':{'macro':'Corrugar','tipo':'Rotoli','diam':'125'},'19P125':{'macro':'Corrugar','tipo':'Rotoli','diam':'125'},'19P125M':{'macro':'Corrugar','tipo':'Rotoli','diam':'125'},'19P125N':{'macro':'Corrugar','tipo':'Rotoli','diam':'125'},'19P125R':{'macro':'Corrugar','tipo':'Rotoli','diam':'125'},'19P125V':{'macro':'Corrugar','tipo':'Rotoli','diam':'125'},'31NT125':{'macro':'Corrugar','tipo':'Rotoli','diam':'125'},'19C160':{'macro':'Corrugar','tipo':'Rotoli','diam':'160'},'19P160':{'macro':'Corrugar','tipo':'Rotoli','diam':'160'},'19P160M':{'macro':'Corrugar','tipo':'Rotoli','diam':'160'},'19P160MN':{'macro':'Corrugar','tipo':'Rotoli','diam':'160'},'19P160N':{'macro':'Corrugar','tipo':'Rotoli','diam':'160'},'19P160R':{'macro':'Corrugar','tipo':'Rotoli','diam':'160'},'19P160RM':{'macro':'Corrugar','tipo':'Rotoli','diam':'160'},'19P160V':{'macro':'Corrugar','tipo':'Rotoli','diam':'160'},'31NT160':{'macro':'Corrugar','tipo':'Rotoli','diam':'160'},'31NT160M':{'macro':'Corrugar','tipo':'Rotoli','diam':'160'},'19C200':{'macro':'Corrugar','tipo':'Rotoli','diam':'200'},'19P200':{'macro':'Corrugar','tipo':'Rotoli','diam':'200'},'19P200N':{'macro':'Corrugar','tipo':'Rotoli','diam':'200'},'19P200R':{'macro':'Corrugar','tipo':'Rotoli','diam':'200'},'31NT200':{'macro':'Corrugar','tipo':'Rotoli','diam':'200'},'19DF063':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'63'},'19DP063':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'63'},'19DP063M':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'63'},'19DF075':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'75'},'19DP075':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'75'},'19DP075M':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'75'},'19DF090':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'90'},'19DP090':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'90'},'19DP090M':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'90'},'19DF110':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'110'},'19DF110M':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'110'},'19DP110':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'110'},'19DP110M':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'110'},'19DF125':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'125'},'19DP125':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'125'},'19DP125M':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'125'},'19DF160':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'160'},'19DP160':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'160'},'19DP160M':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'160'},'19DF200':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'200'},'19DP200':{'macro':'Corrugar','tipo':'Rotoli Drenaggio','diam':'200'},'19DB075':{'macro':'Corrugar','tipo':'Barre Drenaggio','diam':'75'},'19DB090':{'macro':'Corrugar','tipo':'Barre Drenaggio','diam':'90'},'19DB110':{'macro':'Corrugar','tipo':'Barre Drenaggio','diam':'110'},'19DB125':{'macro':'Corrugar','tipo':'Barre Drenaggio','diam':'125'},'19DB160':{'macro':'Corrugar','tipo':'Barre Drenaggio','diam':'160'},'19DB200':{'macro':'Corrugar','tipo':'Barre Drenaggio','diam':'200'},'19DB250':{'macro':'Corrugar','tipo':'Barre Drenaggio','diam':'250'},'19B063R':{'macro':'Corrugar','tipo':'Barre','diam':'63'},'19B075E':{'macro':'Corrugar','tipo':'Barre','diam':'75'},'19P090E':{'macro':'Corrugar','tipo':'Barre','diam':'90'},'19B110E':{'macro':'Corrugar','tipo':'Barre','diam':'110'},'19B110R':{'macro':'Corrugar','tipo':'Barre','diam':'110'},'19P110E':{'macro':'Corrugar','tipo':'Barre','diam':'110'},'19B125E':{'macro':'Corrugar','tipo':'Barre','diam':'125'},'19B125EM3':{'macro':'Corrugar','tipo':'Barre','diam':'125'},'19P125E':{'macro':'Corrugar','tipo':'Barre','diam':'125'},'19P125EM3':{'macro':'Corrugar','tipo':'Barre','diam':'125'},'19B160E':{'macro':'Corrugar','tipo':'Barre','diam':'160'},'19B160EM3':{'macro':'Corrugar','tipo':'Barre','diam':'160'},'19B160R':{'macro':'Corrugar','tipo':'Barre','diam':'160'},'19P160E':{'macro':'Corrugar','tipo':'Barre','diam':'160'},'19P160EM3':{'macro':'Corrugar','tipo':'Barre','diam':'160'},'19P160EN':{'macro':'Corrugar','tipo':'Barre','diam':'160'},'19B200E':{'macro':'Corrugar','tipo':'Barre','diam':'200'},'19B200R':{'macro':'Corrugar','tipo':'Barre','diam':'200'},'19P200E':{'macro':'Corrugar','tipo':'Barre','diam':'200'}
+};
+
+function getVariante(p){
+  var d=p.d.toUpperCase(),c=p.c.toUpperCase(),macro=p.macro,tipo=p.tipo;
+  if(macro==='Corrugar'&&tipo==='Rotoli'){var l=(d.indexOf('25M')>=0||d.indexOf('M 25')>=0||d.indexOf('M25')>=0)?' 25m':' 50m';if(d.indexOf('GIALLO')>=0||c.indexOf('19C')===0)return 'Giallo'+l;if(d.indexOf('BLU IMQ')>=0)return((d.indexOf('C/T')>=0||d.indexOf('T.LO')>=0)?'Blu IMQ c/tirello':'Blu IMQ')+l;if(d.indexOf('GRIGIO')>=0)return 'Grigio'+l;if(d.indexOf('NERO')>=0)return 'Nero'+l;if(d.indexOf('ROSSO')>=0)return 'Rosso'+l;if(d.indexOf('VERDE')>=0)return(d.indexOf('FASTWEB')>=0?'Verde Fastweb':'Verde')+l;return p.d.substring(0,30);}
+  if(macro==='Corrugar'&&tipo==='Barre'){var col=d.indexOf('NERO')>=0?'Nero':(d.indexOf('ROSSO')>=0?'Rosso':'Grigio');var res=d.indexOf('750N')>=0?'750N':'450N';var lun=(d.indexOf(' 3M')>=0||d.indexOf('M.3')>=0||d.slice(-2)==='3M')?'3m':'6m';return res+' '+col+' '+lun;}
+  if(macro==='Corrugar'&&tipo==='Rotoli Drenaggio'){var lun=(d.indexOf('25M')>=0||d.indexOf('M25')>=0||d.indexOf('M 25')>=0)?'25m':'50m';if(d.indexOf('DRENOFILTER')>=0)return 'Drenofilter '+lun;if(d.indexOf('DRENOCOR')>=0)return 'Drenocor '+lun;return p.d.substring(0,25);}
+  if(macro==='Corrugar'&&tipo==='Barre Drenaggio'){var lun=(d.indexOf(' 3M')>=0||d.indexOf('M.3')>=0)?'3m':'6m';return(d.indexOf('DRENOBAR')>=0?'Drenobar ':'')+lun;}
+  if(macro==='Polier'&&tipo==='Barre Gas'){var s=d.indexOf('S5')>=0?'S5':(d.indexOf('S8')>=0?'S8':'');var lun=d.indexOf('12M')>=0||d.indexOf('12 M')>=0?'12m':'6m';return s+(d.indexOf('RC')>=0?' RC':'')+' '+lun;}
+  if(macro==='Polier'&&tipo==='Rotoli Gas'){var s=d.indexOf('S5')>=0?'S5':(d.indexOf('S8')>=0?'S8':'');var m=d.match(/(\d+)\s*M/);return s+(d.indexOf('RC')>=0?' RC':'')+' '+(m?m[0].replace(' ','').toLowerCase():'');}
+  if(macro==='Polier'&&(tipo==='Barre PE100'||tipo==='Rotoli PE100'||tipo==='Rotoli RC2')){var pn=d.match(/PN\s*(\d+[\.,]?\d*)/);var pns=pn?'PN'+pn[1]:'';var lun=c.slice(-1)==='D'||d.indexOf('12M')>=0?'12m':'6m';if(d.indexOf('10,3')>=0||d.indexOf('10.3')>=0)lun='10,3m';if(d.indexOf('11,8')>=0||d.indexOf('11.8')>=0)lun='11,8m';var rc=d.indexOf('RC2')>=0?' RC2':(d.indexOf('RC1')>=0?' RC1':(d.indexOf('RC')>=0?' RC':''));var ad=d.indexOf(' AD')>=0||d.indexOf('AD ')>=0?' AD':'';if(tipo==='Rotoli RC2'){var isb=c.indexOf('06B')===0;return(pns+' RC2 '+(isb?'Barra':'Rotolo')+' '+lun).trim();}if(tipo==='Rotoli PE100'){var m2=d.match(/(\d+)\s*M/);return(pns+rc+' '+(m2?m2[0].replace(' ','').toLowerCase():'100m')).trim();}return(pns+rc+ad+' '+lun).trim();}
+  if(macro==='Polier'&&tipo==='Rotoli Idropolier'){var pn=d.match(/PN\s*(\d+)/);var m=d.match(/(\d+)\s*M/);return((pn?'PN'+pn[1]:'')+' '+(m?m[0].replace(' ','').toLowerCase():'')).trim();}
+  if(macro==='Polier'&&(tipo==='Rotoli BD IIP'||tipo==='Rotoli BD Irriga')){var pn=d.match(/PN\s*(\d+)/);var m=d.match(/(\d+)\s*M/);return((pn?'PN'+pn[1]:'')+' '+(m?m[0].replace(' ','').toLowerCase():'')).trim();}
+  if(macro==='Polier'&&tipo==='Monotubo'){var rig=c.indexOf('RIG')>=0?' Rig':'';var sdr=d.match(/SDR\s*(\d+[\.,]?\d*)/);var sdrs=sdr?'SDR'+sdr[1]+rig:'';var col=d.indexOf('NERO')>=0?'Nero':(d.indexOf('REDLINE')>=0||d.indexOf('ROSSO')>=0?'Rosso':'');var m=d.match(/(\d{2,4})\s*M/);return[col,sdrs,m?m[0].replace(' ','').toLowerCase():''].filter(Boolean).join(' ');}
+  if(macro==='Monopipe'||macro==='Tripplo'){var sn=d.match(/SN\s*(\d+)/);var lun=(d.indexOf(' 3M')>=0||d.indexOf('M.3')>=0||d.slice(-2)==='3M')?'3m':'6m';return((sn?'SN'+sn[1]:'')+' '+lun).trim();}
+  if(macro==='Kingcor'){var sn=d.match(/SN\s*(\d+)/);var lun=d.indexOf(' 3M')>=0||d.indexOf('M.3')>=0?'3m':'6m';return sn?(('SN'+sn[1]+' '+lun).trim()):p.d.substring(0,30);}
+  if(macro==='Superfluid'){var sn=d.match(/SN\s*(\d+)/);var lun=d.indexOf('3M')>=0||d.indexOf('M.3')>=0?'3m':'6m';var ex=(d.indexOf('F4S')>=0?' F4S':'')+(d.indexOf('F6N')>=0?' F6N':'')+(d.indexOf('TNT')>=0?' TNT':'');return((sn?'SN'+sn[1]:'')+ex+' '+lun).trim();}
+  if(macro==='SediciPlus'){var sn=d.match(/SN\s*(\d+)/);var lun=d.indexOf('3M')>=0||d.indexOf('M.3')>=0?'3m':'6m';var ex=(d.indexOf('F4S')>=0?' F4S':'')+(d.indexOf('F6N')>=0?' F6N':'');return((sn?'SN'+sn[1]:'')+ex+' '+lun).trim();}
+  return p.d.substring(0,30);
+}
+
+function processExcel(buffer){
+  var wb=XLSX.read(new Uint8Array(buffer),{type:'array'});
+  var ws=wb.Sheets[wb.SheetNames[0]];
+  var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+  var products=[];
+  for(var i=1;i<rows.length;i++){
+    var row=rows[i],c=String(row[0]||'').trim();
+    if(!c||!LISTA[c])continue;
+    var info=LISTA[c];
+    products.push({c:c,d:String(row[7]||'').trim(),um:'ML',
+      i:Math.round(parseFloat(row[8]||0)||0),
+      l:Math.round(parseFloat(row[11]||0)||0),
+      macro:info.macro,tipo:info.tipo,diam:info.diam});
+  }
+  products.forEach(function(p){p.var=getVariante(p);});
+  var groups={};
+  products.forEach(function(p){var k=p.macro+'|'+p.tipo+'|'+p.diam+'|'+p.var;if(!groups[k])groups[k]=[];groups[k].push(p);});
+  Object.keys(groups).forEach(function(k){if(groups[k].length>1)groups[k].forEach(function(p){p.var=p.d;});});
+  return products;
+}
+
+function buildAndDownload(products){
+  var lines=products.map(function(p){
+    var d=p.d.replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/'/g,"\\'");
+    var c=p.c.replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/'/g,"\\'");
+    var v=p.var.replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/'/g,"\\'");
+    return '{c:"'+c+'",d:"'+d+'",i:'+p.i+',l:'+p.l+',"macro":"'+p.macro+'","tipo":"'+p.tipo+'","diam":"'+p.diam+'","var":"'+v+'"}';
+  });
+  var dataJS='var DATA=[\n'+lines.join(',\n')+'\n];';
+  var now=new Date();
+  var dataStr=now.toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+now.toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'});
+
+  // Decodifica template da base64
+  var templateBytes = atob(TEMPLATE_B64);
+  var html = decodeURIComponent(escape(templateBytes));
+  html = html.replace(/var DATA=\[\s\S]*?\];/, dataJS);
+  html = html.replace(/Ultimo aggiornamento: <strong[^>]*>[^<]*<\/strong>/,
+    'Ultimo aggiornamento: <strong id="update-date">'+dataStr+'<\/strong>');
+
+  var blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='index.html';
+  a.click();
+
+  document.getElementById('status').style.display='block';
+  document.getElementById('status').className='status success';
+  document.getElementById('status').textContent='✓ File generato! Ora caricalo su GitHub seguendo le istruzioni qui sotto.';
+  document.getElementById('istruzioni').style.display='block';
+}
+
+var fileData=null;
+// click gestito dal label
+document.getElementById('file-input').addEventListener('change',function(e){if(e.target.files[0])loadFile(e.target.files[0]);});
+var dz=document.getElementById('drop-zone');
+dz.addEventListener('dragover',function(e){e.preventDefault();dz.classList.add('dragover');});
+dz.addEventListener('dragleave',function(){dz.classList.remove('dragover');});
+dz.addEventListener('drop',function(e){e.preventDefault();dz.classList.remove('dragover');if(e.dataTransfer.files[0])loadFile(e.dataTransfer.files[0]);});
+
+function loadFile(file){
+  var reader=new FileReader();
+  reader.onload=function(e){
+    fileData=e.target.result;
+    dz.classList.add('loaded');
+    dz.querySelector('p').innerHTML='\u2713 <strong>'+file.name+'</strong><br>File caricato, pronto per la generazione';
+    document.getElementById('generate-btn').disabled=false;
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+document.getElementById('generate-btn').addEventListener('click',function(){
+  if(!fileData)return;
+  try{
+    var products=processExcel(fileData);
+    if(!products.length)throw new Error('Nessun articolo trovato. Verifica che sia il file corretto.');
+    buildAndDownload(products);
+  }catch(err){
+    document.getElementById('status').style.display='block';
+    document.getElementById('status').className='status error';
+    document.getElementById('status').textContent='\u2717 '+err.message;
+  }
+});
+</script>
+</body>
+</html>
