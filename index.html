@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Giacenze">
+<title>Giacenze Magazzino</title>
+<style>:root{--bg:#fff;--bg2:#f5f5f5;--border:#e0e0e0;--text:#1a1a1a;--text2:#666;--text3:#999;--radius:10px;--radius-sm:7px;--font:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{font-family:var(--font);background:var(--bg);color:var(--text);max-width:480px;margin:0 auto;min-height:100vh}
+.hidden{display:none!important}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 1rem;border-bottom:1px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:10}
+.topbar-title{font-size:16px;font-weight:600}
+.topbar-badge{font-size:12px;color:var(--text2);background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:3px 10px}
+.search-row{padding:10px 1rem;border-bottom:1px solid var(--border)}
+.search-wrap{position:relative;display:flex;align-items:center}
+.search-icon{position:absolute;left:10px;color:var(--text3);font-size:15px}
+#search-input{width:100%;padding:9px 36px 9px 34px;font-size:15px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--bg2);color:var(--text);-webkit-appearance:none}
+#search-input:focus{outline:none;border-color:#aaa}
+.clear-btn{position:absolute;right:8px;background:none;border:none;cursor:pointer;color:var(--text3);padding:4px;font-size:16px;line-height:1}
+#search-results{display:none}
+.sr-item{display:flex;align-items:center;justify-content:space-between;padding:12px 1rem;border-bottom:1px solid var(--border);cursor:pointer}
+.sr-item:active{background:var(--bg2)}
+.sr-name{font-size:13px;line-height:1.35}
+.sr-code{font-size:11px;color:var(--text3);margin-top:2px;font-family:monospace}
+.sr-right{text-align:right;min-width:50px}
+.sr-qty{font-size:16px;font-weight:600}
+.sr-um{font-size:11px;color:var(--text3)}
+.no-res{padding:2.5rem;text-align:center;font-size:14px;color:var(--text3)}
+/* ROTELLE - layout 2 colonne per drum2+drum3 */
+.picker-label{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px;padding:8px 1rem 3px}
+.drums-row{display:flex;border-bottom:1px solid var(--border)}
+.drums-row .drum-col{flex:1;border-right:1px solid var(--border)}
+.drums-row .drum-col:last-child{border-right:none}
+.drums-row .picker-label{padding:8px 0.75rem 3px}
+.drum-wrap{position:relative;height:154px;overflow:hidden;user-select:none;touch-action:none;cursor:grab}
+.drum-wrap:active{cursor:grabbing}
+.fade-t,.fade-b{position:absolute;left:0;right:0;height:54px;z-index:2;pointer-events:none}
+.fade-t{top:0;background:linear-gradient(to bottom,#fff,transparent)}
+.fade-b{bottom:0;background:linear-gradient(to top,#fff,transparent)}
+.drum-sel{position:absolute;left:0.5rem;right:0.5rem;top:50%;transform:translateY(-50%);height:44px;border-top:1.5px solid #333;border-bottom:1.5px solid #333;pointer-events:none;z-index:1}
+.drum-list{position:absolute;width:100%;padding:55px 0;will-change:transform}
+.drum-item{height:44px;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--text3);padding:0 0.5rem;text-align:center;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drum-item.sel{color:var(--text);font-weight:600;font-size:15px}
+/* rotelle grandi (cat e tipo) */
+.drum-full .drum-item{font-size:14px}
+.drum-full .drum-item.sel{font-size:15px}
+.drum-full .drum-sel{left:1rem;right:1rem}
+.divider{height:1px;background:var(--border);margin:0}
+.go-btn{display:flex;align-items:center;justify-content:center;margin:1rem 1rem 1.5rem;background:#1a1a1a;border:none;border-radius:var(--radius);padding:14px;font-size:16px;font-weight:600;color:#fff;cursor:pointer;width:calc(100% - 2rem)}
+.go-btn:active{background:#333}
+/* DETTAGLIO */
+#detail-screen{padding-bottom:3rem}
+.back-btn{display:flex;align-items:center;gap:6px;padding:14px 1rem;font-size:15px;color:var(--text2);background:none;border:none;cursor:pointer;width:100%}
+.det-header{padding:4px 1rem 1.5rem;border-bottom:1px solid var(--border)}
+.det-code{font-size:11px;color:var(--text3);margin-bottom:6px;font-family:monospace}
+.det-name{font-size:17px;font-weight:600;line-height:1.35}
+.det-sub{font-size:13px;color:var(--text2);margin-top:5px}
+.avail-banner{margin:1.25rem 1rem 0.75rem;border-radius:var(--radius);padding:1.25rem;display:flex;align-items:center;justify-content:space-between}
+.avail-banner.green{background:#E1F5EE}
+.avail-banner.orange{background:#FFF3E0}
+.avail-banner.red{background:#FAECE7}
+.av-label{font-size:12px;font-weight:600}
+.av-label.green{color:#085041}.av-label.orange{color:#5D3A00}.av-label.red{color:#4A1B0C}
+.av-value{font-size:36px;font-weight:700;line-height:1}
+.av-value.green{color:#0F6E56}.av-value.orange{color:#E65100}.av-value.red{color:#C62828}
+.av-um{font-size:12px;margin-top:4px}
+.av-um.green{color:#085041}.av-um.orange{color:#5D3A00}.av-um.red{color:#4A1B0C}
+.stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:0 1rem}
+.stat-card{background:var(--bg2);border-radius:var(--radius-sm);padding:12px}
+.stat-lbl{font-size:10px;color:var(--text3);margin-bottom:5px;font-weight:500}
+.stat-val{font-size:22px;font-weight:600}
+.qty-ok{color:#0F6E56}.qty-zero{color:#C62828}
+.update-bar{background:#f0f0f0;padding:6px 1rem;font-size:12px;color:#666;border-bottom:1px solid var(--border);text-align:center;}
+.update-bar strong{color:#1a1a1a;}
+</style>
+</head>
+<body>
+<div id="main-screen">
+  <div class="topbar">
+    <span class="topbar-title">Giacenze Magazzino</span>
+    <span class="topbar-badge">774 articoli</span>
+  </div>
+  
+  <div class="update-bar">
+    <span>Ultimo aggiornamento: <strong id="update-date">29/05/2026 13:35</strong></span>
+  </div>
+  <div class="search-row">
+    <div class="search-wrap">
+      <span class="search-icon">&#128269;</span>
+      <input type="search" id="search-input" placeholder="Cerca codice o descrizione&#8230;">
+      <button class="clear-btn hidden" id="clear-btn">&#10005;</button>
+    </div>
+  </div>
+  <div id="search-results"></div>
+  <div id="picker-ui">
+    <p class="picker-label">Categoria</p>
+    <div class="drum-wrap drum-full" id="drum0">
+      <div class="fade-t"></div><div class="fade-b"></div>
+      <div class="drum-sel"></div>
+      <div class="drum-list" id="list0"></div>
+    </div>
+    <div class="divider"></div>
+    <p class="picker-label">Tipologia</p>
+    <div class="drum-wrap drum-full" id="drum1">
+      <div class="fade-t"></div><div class="fade-b"></div>
+      <div class="drum-sel"></div>
+      <div class="drum-list" id="list1"></div>
+    </div>
+    <div class="divider"></div>
+    <div class="drums-row">
+      <div class="drum-col">
+        <p class="picker-label">Diametro</p>
+        <div class="drum-wrap" id="drum2">
+          <div class="fade-t"></div><div class="fade-b"></div>
+          <div class="drum-sel"></div>
+          <div class="drum-list" id="list2"></div>
+        </div>
+      </div>
+      <div class="drum-col">
+        <p class="picker-label">Variante</p>
+        <div class="drum-wrap" id="drum3">
+          <div class="fade-t"></div><div class="fade-b"></div>
+          <div class="drum-sel"></div>
+          <div class="drum-list" id="list3"></div>
+        </div>
+      </div>
+    </div>
+    <button class="go-btn" id="go-btn">Visualizza giacenze</button>
+  </div>
+</div>
+
+<div id="detail-screen" class="hidden">
+  <button class="back-btn" id="back-btn">&#8592; Indietro</button>
+  <div class="det-header">
+    <p class="det-code" id="d-code"></p>
+    <p class="det-name" id="d-name"></p>
+    <p class="det-sub" id="d-sub"></p>
+  </div>
+  <div class="avail-banner" id="avail-banner">
+    <div>
+      <p class="av-label" id="av-label">Disponibile (I - L)</p>
+      <p class="av-um" id="av-um"></p>
+    </div>
+    <p class="av-value" id="av-value"></p>
+  </div>
+  <div class="stats-grid">
+    <div class="stat-card"><p class="stat-lbl">A terra</p><p class="stat-val" id="d-aterra"></p></div>
+    <div class="stat-card"><p class="stat-lbl">Ordinato</p><p class="stat-val" id="d-ordinato"></p></div>
+  </div>
+</div>
+<script>
+var DATA=[
+{c:"19B063R",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"63","var":"450N Grigio 6m"},
+{c:"19B075E",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"75","var":"450N Grigio 6m"},
+{c:"19B110E",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"110","var":""},
+{c:"19B110R",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"110","var":""},
+{c:"19B125E",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"125","var":""},
+{c:"19B125EM3",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"125","var":""},
+{c:"19B160E",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"160","var":""},
+{c:"19B160EM3",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"160","var":""},
+{c:"19B160R",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"160","var":""},
+{c:"19B200E",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"200","var":""},
+{c:"19B200R",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"200","var":""},
+{c:"19P040",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"40","var":""},
+{c:"19P040M",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"40","var":""},
+{c:"19P040MN",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"40","var":""},
+{c:"19P040N",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"40","var":""},
+{c:"19P040R",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"40","var":""},
+{c:"19P050",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"50","var":""},
+{c:"19P050M",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"50","var":""},
+{c:"19P050MN",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"50","var":""},
+{c:"19P050N",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"50","var":""},
+{c:"19P050R",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"50","var":""},
+{c:"19P050RM",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"50","var":""},
+{c:"19P050V",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"50","var":""},
+{c:"19P063",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"63","var":""},
+{c:"19P063M",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"63","var":""},
+{c:"19P063N",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"63","var":""},
+{c:"19P063R",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"63","var":""},
+{c:"19P063V",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"63","var":""},
+{c:"19P063VF",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"63","var":""},
+{c:"19P075",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"75","var":""},
+{c:"19P075M",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"75","var":""},
+{c:"19P075MN",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"75","var":""},
+{c:"19P075N",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"75","var":""},
+{c:"19P075R",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"75","var":""},
+{c:"19P075V",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"75","var":""},
+{c:"19P090",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"90","var":""},
+{c:"19P090E",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"90","var":"450N Grigio 6m"},
+{c:"19P090M",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"90","var":""},
+{c:"19P090N",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"90","var":""},
+{c:"19P090R",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"90","var":""},
+{c:"19P090V",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"90","var":""},
+{c:"19P110",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"110","var":""},
+{c:"19P110E",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"110","var":""},
+{c:"19P110M",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"110","var":""},
+{c:"19P110N",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"110","var":""},
+{c:"19P110R",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"110","var":""},
+{c:"19P110V",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"110","var":""},
+{c:"19P125",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"125","var":""},
+{c:"19P125E",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"125","var":""},
+{c:"19P125EM3",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"125","var":""},
+{c:"19P125M",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"125","var":""},
+{c:"19P125N",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"125","var":""},
+{c:"19P125R",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"125","var":""},
+{c:"19P125V",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"125","var":""},
+{c:"19P160",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"160","var":""},
+{c:"19P160E",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"160","var":""},
+{c:"19P160EM3",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"160","var":""},
+{c:"19P160EN",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"160","var":""},
+{c:"19P160M",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"160","var":""},
+{c:"19P160MN",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"160","var":""},
+{c:"19P160N",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"160","var":""},
+{c:"19P160R",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"160","var":""},
+{c:"19P160RM",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"160","var":""},
+{c:"19P160V",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"160","var":""},
+{c:"19P200",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"200","var":""},
+{c:"19P200E",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Barre","diam":"200","var":""},
+{c:"19P200N",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"200","var":""},
+{c:"19P200R",d:"",i:0,l:0,"macro":"Corrugar","tipo":"Rotoli","diam":"200","var":""}
+];
+
+var MACRO_ORDER=['Corrugar','Polier','Superfluid','SediciPlus','Kingcor','Monopipe','Tripplo'];
+var TIPO_ORDER={
+  'Corrugar':   ['Rotoli','Barre','Rotoli Drenaggio','Barre Drenaggio'],
+  'Polier':     ['Rotoli PE100','Rotoli RC2','Barre PE100','Rotoli Gas','Barre Gas','Rotoli BD IIP','Rotoli BD Irriga','Monotubo'],
+  'Superfluid': ['Tubi'],
+  'SediciPlus': ['Tubi'],
+  'Kingcor':    ['Tubi'],
+  'Monopipe':   ['Tubi'],
+  'Tripplo':    ['Tubi']
+};
+var IH=44;
+
+// Indice: byKey[macro][tipo][diam][var] = prodotto
+var byKey={};
+DATA.forEach(function(p){
+  if(!byKey[p.macro])byKey[p.macro]={};
+  if(!byKey[p.macro][p.tipo])byKey[p.macro][p.tipo]={};
+  var d=p.diam||'—';
+  if(!byKey[p.macro][p.tipo][d])byKey[p.macro][p.tipo][d]={};
+  byKey[p.macro][p.tipo][d][p.var]=p;
+});
+
+var macroList=MACRO_ORDER.filter(function(m){return !!byKey[m];});
+var idx=[0,0,0,0];
+
+function tipiOf(mi){
+  var m=macroList[mi],order=TIPO_ORDER[m]||[],avail=Object.keys(byKey[m]||{});
+  var res=order.filter(function(t){return avail.indexOf(t)>=0;});
+  avail.forEach(function(t){if(res.indexOf(t)<0)res.push(t);});
+  return res;
+}
+function diamOf(mi,ti){
+  var m=macroList[mi],t=tipiOf(mi)[ti];
+  if(!byKey[m]||!byKey[m][t])return[];
+  return Object.keys(byKey[m][t]).sort(function(a,b){return parseFloat(a)-parseFloat(b);});
+}
+function varOf(mi,ti,di){
+  var m=macroList[mi],t=tipiOf(mi)[ti],d=diamOf(mi,ti)[di];
+  if(!byKey[m]||!byKey[m][t]||!byKey[m][t][d])return[];
+  var vars=Object.keys(byKey[m][t][d]);
+  // Ordina per valore numerico se inizia con PN o SN
+  vars.sort(function(a,b){
+    // Estrai il primo numero (PN o SN) dalla stringa
+    var ma=a.match(/(\d+[.,]?\d*)/);
+    var mb=b.match(/(\d+[.,]?\d*)/);
+    var na=ma?parseFloat(ma[1].replace(',','.')):999;
+    var nb=mb?parseFloat(mb[1].replace(',','.')):999;
+    if(na!==nb) return na-nb;
+    // Stesso PN/SN: ordina per lunghezza (secondo numero)
+    var la=a.match(/(\d+)m/); var lb=b.match(/(\d+)m/);
+    var nla=la?parseInt(la[1]):0; var nlb=lb?parseInt(lb[1]):0;
+    return nla-nlb;
+  });
+  return vars;
+}
+function getProd(mi,ti,di,vi){
+  var m=macroList[mi],t=tipiOf(mi)[ti],d=diamOf(mi,ti)[di],v=varOf(mi,ti,di)[vi];
+  return (byKey[m]&&byKey[m][t]&&byKey[m][t][d]&&byKey[m][t][d][v])||null;
+}
+
+function rDrum(el,items,selIdx){
+  while(el.firstChild)el.removeChild(el.firstChild);
+  for(var j=0;j<items.length;j++){
+    var div=document.createElement('div');
+    div.className='drum-item'+(j===selIdx?' sel':'');
+    div.textContent=items[j];
+    el.appendChild(div);
+  }
+  el.style.transition='none';
+  el.style.transform='translateY('+(-selIdx*IH)+'px)';
+}
+
+function r0(){rDrum(document.getElementById('list0'),macroList,idx[0]);}
+function r1(){idx[1]=0;rDrum(document.getElementById('list1'),tipiOf(idx[0]),0);}
+function r2(){idx[2]=0;var ds=diamOf(idx[0],idx[1]);rDrum(document.getElementById('list2'),ds.map(function(d){return d+' mm';}),0);}
+function r3(){idx[3]=0;rDrum(document.getElementById('list3'),varOf(idx[0],idx[1],idx[2]),0);}
+
+function mkDrum(drumId,listId,level,afterChange){
+  var wrap=document.getElementById(drumId);
+  var el=document.getElementById(listId);
+
+  function getItems(){
+    if(level===0)return macroList;
+    if(level===1)return tipiOf(idx[0]);
+    if(level===2){var ds=diamOf(idx[0],idx[1]);return ds.map(function(d){return d+" mm";});}
+    return varOf(idx[0],idx[1],idx[2]);
+  }
+  function maxIdx(){return Math.max(0,getItems().length-1);}
+  function clamp(i){return i<0?0:i>maxIdx()?maxIdx():i;}
+
+  var curOffset=0;
+  var raf=null;
+
+  function updateVisual(offset){
+    curOffset=offset;
+    var ni=clamp(Math.round(offset/IH));
+    el.style.transition="none";
+    el.style.transform="translateY("+(-offset)+"px)";
+    for(var j=0;j<el.children.length;j++){
+      el.children[j].className="drum-item"+(j===ni?" sel":"");
+    }
+  }
+
+  function snapTo(targetIdx){
+    targetIdx=clamp(targetIdx);
+    var from=curOffset;
+    var to=targetIdx*IH;
+    if(raf)cancelAnimationFrame(raf);
+    if(Math.abs(from-to)<1){
+      updateVisual(to);
+      idx[level]=targetIdx;
+      if(afterChange)afterChange();
+      return;
+    }
+    var t0=performance.now();
+    var dur=Math.min(300,Math.max(80,Math.abs(to-from)*1.2));
+    (function step(now){
+      var p=Math.min(1,(now-t0)/dur);
+      var ep=1-Math.pow(1-p,3);
+      updateVisual(from+(to-from)*ep);
+      if(p<1){raf=requestAnimationFrame(step);}
+      else{
+        updateVisual(to);
+        idx[level]=targetIdx;
+        if(afterChange)afterChange();
+      }
+    })(performance.now());
+  }
+
+  var tSY=0,tSOff=0,tLY=0,tLT=0,tVel=0,tOn=false;
+
+  wrap.addEventListener("touchstart",function(e){
+    if(raf)cancelAnimationFrame(raf);
+    tSY=e.touches[0].clientY;tSOff=curOffset;
+    tLY=tSY;tLT=Date.now();tVel=0;tOn=true;
+  },{passive:true});
+
+  document.addEventListener("touchmove",function(e){
+    if(!tOn)return;
+    e.preventDefault();
+    var y=e.touches[0].clientY,now=Date.now(),dt=now-tLT;
+    if(dt>0)tVel=(tLY-y)/dt;
+    tLY=y;tLT=now;
+    var raw=tSOff+(tSY-y);
+    var mx=maxIdx()*IH;
+    if(raw<0)raw=raw*0.25;
+    if(raw>mx)raw=mx+(raw-mx)*0.25;
+    updateVisual(raw);
+  },{passive:false});
+
+  document.addEventListener("touchend",function(){
+    if(!tOn)return;
+    tOn=false;
+    snapTo(clamp(Math.round((curOffset+tVel*100)/IH)));
+  },{passive:true});
+
+  var mSY=0,mSOff=0,mLY=0,mLT=0,mVel=0,mOn=false;
+  wrap.addEventListener("mousedown",function(e){
+    if(raf)cancelAnimationFrame(raf);
+    mSY=e.clientY;mSOff=curOffset;mLY=e.clientY;mLT=Date.now();mVel=0;mOn=true;
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove",function(e){
+    if(!mOn)return;
+    var now=Date.now(),dt=now-mLT;
+    if(dt>0)mVel=(mLY-e.clientY)/dt;
+    mLY=e.clientY;mLT=now;
+    var raw=mSOff+(mSY-e.clientY);
+    var mx=maxIdx()*IH;
+    if(raw<0)raw=raw*0.25;
+    if(raw>mx)raw=mx+(raw-mx)*0.25;
+    updateVisual(raw);
+  });
+  document.addEventListener("mouseup",function(){
+    if(!mOn)return;
+    mOn=false;
+    snapTo(clamp(Math.round((curOffset+mVel*100)/IH)));
+  });
+
+  wrap.addEventListener("wheel",function(e){
+    e.preventDefault();
+    if(raf)cancelAnimationFrame(raf);
+    snapTo(clamp(idx[level]+(e.deltaY>0?1:-1)));
+  },{passive:false});
+}
+
+function showDet(p){
+  document.getElementById('d-code').textContent=p.c;
+  document.getElementById('d-name').textContent=p.d;
+  document.getElementById('d-sub').textContent=p.macro+' \u00b7 '+p.tipo+' \u00b7 DN '+p.diam+' mm';
+  var v=p.i-p.l;
+  var cls=v>0?'green':v===0?'orange':'red';
+  document.getElementById('avail-banner').className='avail-banner '+cls;
+  document.getElementById('av-label').className='av-label '+cls;
+  document.getElementById('av-value').className='av-value '+cls;
+  document.getElementById('av-um').className='av-um '+cls;
+  document.getElementById('av-value').textContent=v;
+  document.getElementById('av-um').textContent='ML';
+  document.getElementById('d-aterra').textContent=p.i;
+  document.getElementById('d-ordinato').textContent=p.l;
+  document.getElementById('main-screen').classList.add('hidden');
+  document.getElementById('detail-screen').classList.remove('hidden');
+  window.scrollTo(0,0);
+}
+
+function showByCode(code){
+  for(var i=0;i<DATA.length;i++){if(DATA[i].c===code){showDet(DATA[i]);return;}}
+}
+
+window.addEventListener('DOMContentLoaded',function(){
+  r0(); r1(); r2(); r3();
+
+  mkDrum('drum0','list0',0,function(){r1();r2();r3();});
+  mkDrum('drum1','list1',1,function(){r2();r3();});
+  mkDrum('drum2','list2',2,function(){r3();});
+  mkDrum('drum3','list3',3,null);
+
+  document.getElementById('go-btn').addEventListener('click',function(){
+    var p=getProd(idx[0],idx[1],idx[2],idx[3]);
+    if(p)showDet(p);
+  });
+
+  document.getElementById('back-btn').addEventListener('click',function(){
+    document.getElementById('detail-screen').classList.add('hidden');
+    document.getElementById('main-screen').classList.remove('hidden');
+    window.scrollTo(0,0);
+  });
+
+  var si=document.getElementById('search-input'),cb=document.getElementById('clear-btn');
+  var sr=document.getElementById('search-results'),pu=document.getElementById('picker-ui');
+
+  si.addEventListener('input',function(){
+    var q=si.value.trim().toUpperCase();
+    cb.classList.toggle('hidden',!q);
+    if(!q){sr.style.display='none';pu.style.display='';return;}
+    pu.style.display='none';
+    var hits=[],i=0;
+    while(i<DATA.length&&hits.length<80){
+      var p=DATA[i];
+      if(p.d.toUpperCase().indexOf(q)>=0||p.c.toUpperCase().indexOf(q)>=0)hits.push(p);
+      i++;
+    }
+    if(!hits.length){sr.innerHTML='<p class="no-res">Nessun risultato</p>';}
+    else{
+      var html='';
+      for(var j=0;j<hits.length;j++){
+        var p=hits[j],v=p.i-p.l,safe=p.c.replace(/'/g,'\x27');
+        html+='<div class="sr-item" onclick="showByCode(\''+safe+'\');document.getElementById(\'search-input\').value=\'\';document.getElementById(\'clear-btn\').classList.add(\'hidden\');document.getElementById(\'search-results\').style.display=\'none\';document.getElementById(\'picker-ui\').style.display=\'\'">'
+          +'<div><p class="sr-name">'+p.d+'</p><p class="sr-code">'+p.c+' \u2014 '+p.macro+'</p></div>'
+          +'<div class="sr-right"><p class="sr-qty '+(v>0?'qty-ok':'qty-zero')+'">'+v+'</p><p class="sr-um">ML</p></div>'
+          +'</div>';
+      }
+      sr.innerHTML=html;
+    }
+    sr.style.display='block';
+  });
+  cb.addEventListener('click',function(){
+    si.value='';cb.classList.add('hidden');
+    sr.style.display='none';pu.style.display='';
+  });
+});
+
+</script>
+</body>
+</html>
