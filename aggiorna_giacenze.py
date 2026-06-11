@@ -136,11 +136,12 @@ if not saldi_file: print("ERRORE: Stampa_saldi non trovato"); sys.exit(1)
 print(f"Saldi: {saldi_file}")
 wb_saldi = load_workbook(saldi_file, read_only=True)
 data = []
+codici_visti = set()
 for row in wb_saldi.active.iter_rows(min_row=2, values_only=True):
     c = str(row[0] or "").strip()
-    mag = str(row[1] or "").strip()
     if c not in codici_lista: continue
-    if mag != "000": continue  # prendi solo magazzino principale
+    if c in codici_visti: continue  # prendi solo la prima riga per codice
+    codici_visti.add(c)
     try: i = int(float(row[8] or 0))
     except: i = 0
     try: l = int(float(row[11] or 0))
