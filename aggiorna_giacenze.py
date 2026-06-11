@@ -108,7 +108,7 @@ def get_var(p):
         return (("SN" + sn.group(1) if sn else "") + ex + " " + lu).strip()
     return p["d"][:15]
 
-# ── LEGGI LISTA ARTICOLI ──────────────────────────────────────────
+# ── LISTA ARTICOLI ────────────────────────────────────────────────
 wb_lista = load_workbook("Lista Articoli per consultazione.xlsx", read_only=True)
 codici_lista = {}
 for sn in wb_lista.sheetnames:
@@ -128,19 +128,15 @@ for sn in wb_lista.sheetnames:
                 codici_lista[c] = {"macro": macro, "tipo": tipo, "diam": diam}
         else:
             codici_lista[c] = {"macro": macro, "tipo": tipo, "diam": diam}
+print(f"Lista articoli: {len(codici_lista)} codici")
 
-# ── LEGGI SALDI ───────────────────────────────────────────────────
-saldi_file = None
-for f in Path(".").glob("Stampa_saldi*.xlsx"):
-    saldi_file = f; break
-if not saldi_file:
-    print("ERRORE: file Stampa_saldi non trovato"); sys.exit(1)
+# ── SALDI ─────────────────────────────────────────────────────────
+saldi_file = next(Path(".").glob("Stampa_saldi*.xlsx"), None)
+if not saldi_file: print("ERRORE: Stampa_saldi non trovato"); sys.exit(1)
 print(f"Saldi: {saldi_file}")
-
 wb_saldi = load_workbook(saldi_file, read_only=True)
-ws_saldi = wb_saldi.active
 data = []
-for row in ws_saldi.iter_rows(min_row=2, values_only=True):
+for row in wb_saldi.active.iter_rows(min_row=2, values_only=True):
     c = str(row[0] or "").strip()
     if c not in codici_lista: continue
     try: i = int(float(row[8] or 0))
@@ -150,74 +146,94 @@ for row in ws_saldi.iter_rows(min_row=2, values_only=True):
     info = codici_lista[c]
     data.append({"c":c,"d":str(row[7] or "").strip(),"um":"ML",
                  "i":i,"l":l,"macro":info["macro"],"tipo":info["tipo"],"diam":info["diam"]})
+print(f"Articoli: {len(data)}")
 
-# ── LEGGI PORTAFOGLIO ORDINI ──────────────────────────────────────
-ordini_file = None
-for f in Path(".").glob("Stampa_portafoglio*.xlsx"):
-    ordini_file = f; break
+# ── PORTAFOGLIO ORDINI ────────────────────────────────────────────
+ord_file = next(Path(".").glob("Stampa_portafoglio*.xlsx"), None)
+ordini_art = defaultdict(list)
+clienti_dict = {}
+ordini_cli = defaultdict(lambda: defaultdict(lambda: {"righe":[], "totale":0.0}))
 
-ordini = defaultdict(list)
-if ordini_file:
-    print(f"Ordini: {ordini_file}")
-    wb_ord = load_workbook(ordini_file, read_only=True)
-    ws_ord = wb_ord.active
-    for row in ws_ord.iter_rows(min_row=2, values_only=True):
-        codice  = str(row[12] or "").strip()
-        cliente = str(row[7]  or "").strip()
-        num_doc = str(row[2]  or "").strip()
+if ord_file:
+    print(f"Ordini: {ord_file}")
+    for row in load_workbook(ord_file, read_only=True).active.iter_rows(min_row=2, values_only=True):
+        cod_cli  = str(row[1]  or "").strip()
+        nome_cli = str(row[7]  or "").strip()
+        num_doc  = str(row[2]  or "").strip()
         data_ord = row[4]
-        qta     = row[16]
-        if not codice or not cliente: continue
-        try: qta = int(float(qta or 0))
+        cod_art  = str(row[12] or "").strip()
+        desc_art = str(row[13] or "").strip()
+        um       = str(row[15] or "").strip()
+        try: qta    = float(row[16] or 0)
         except: qta = 0
-        if qta == 0: continue
+        try: prezzo = float(row[18] or 0)
+        except: prezzo = 0
+        try: tot_riga = float(row[6] or 0)
+        except: tot_riga = 0
+        if not cod_cli or not nome_cli or qta == 0: continue
         data_str = data_ord.strftime("%d/%m/%Y") if hasattr(data_ord,"strftime") else str(data_ord or "")[:10]
-        ordini[codice].append({"cli":cliente,"ord":num_doc,"dat":data_str,"qta":qta})
-else:
-    print("Portafoglio ordini non trovato — ordini non inclusi")
+        clienti_dict[cod_cli] = nome_cli
+        ordini_art[cod_art].append({"cli":nome_cli,"ord":num_doc,"dat":data_str,"qta":round(int(qta))})
+        ordini_cli[cod_cli][num_doc]["righe"].append(
+            {"art":cod_art,"des":desc_art,"dat":data_str,"qta":round(int(qta)),"um":um,"prez":round(prezzo,4)})
+        ordini_cli[cod_cli][num_doc]["totale"] += tot_riga
+    print(f"Clienti: {len(clienti_dict)}")
 
-# ── VARIANTI E DEDUP ──────────────────────────────────────────────
+# ── VARIANTI + DEDUP ──────────────────────────────────────────────
 for p in data:
     p["var"] = get_var(p)
-    p["ord"] = ordini.get(p["c"], [])
-
+    p["ord"] = ordini_art.get(p["c"], [])
 groups = defaultdict(list)
 for p in data: groups[(p["macro"],p["tipo"],p["diam"],p["var"])].append(p)
 for key, prods in groups.items():
     if len(prods) > 1:
         for p in prods: p["var"] = p["var"] + " (" + p["c"][-4:] + ")"
 
-# ── GENERA HTML ───────────────────────────────────────────────────
+# ── GENERA JS ─────────────────────────────────────────────────────
 def esc(s): return s.replace("\\","\\\\").replace('"','\\"')
 
 lines = []
 for p in data:
-    ord_js = json.dumps(p["ord"], ensure_ascii=False)
     lines.append('{'
-        + 'c:"' + esc(p["c"]) + '"'
-        + ',d:"' + esc(p["d"]) + '"'
-        + ',i:' + str(p["i"])
-        + ',l:' + str(p["l"])
-        + ',"macro":"' + esc(p["macro"]) + '"'
-        + ',"tipo":"' + esc(p["tipo"]) + '"'
-        + ',"diam":"' + esc(p["diam"]) + '"'
-        + ',"var":"' + esc(p["var"]) + '"'
-        + ',"ord":' + ord_js
+        + 'c:"'+esc(p["c"])+'"'
+        + ',d:"'+esc(p["d"])+'"'
+        + ',i:'+str(p["i"])+',l:'+str(p["l"])
+        + ',"macro":"'+esc(p["macro"])+'"'
+        + ',"tipo":"'+esc(p["tipo"])+'"'
+        + ',"diam":"'+esc(p["diam"])+'"'
+        + ',"var":"'+esc(p["var"])+'"'
+        + ',"ord":'+json.dumps(p["ord"], ensure_ascii=False)
         + '}')
-
 data_js = "var DATA=[\n" + ",\n".join(lines) + "\n];"
+
+cli_list = sorted([{"cod":k,"nome":v} for k,v in clienti_dict.items()], key=lambda x: x["nome"])
+cli_js = "var CLIENTI=[\n" + ",\n".join(
+    ['{"cod":"'+esc(c["cod"])+'","nome":"'+esc(c["nome"])+'"}' for c in cli_list]
+) + "\n];"
+
+ord_cli_parts = []
+for cod_cli, ordini in ordini_cli.items():
+    ord_list = []
+    for num_ord, dati in sorted(ordini.items()):
+        dat = dati["righe"][0]["dat"] if dati["righe"] else ""
+        ord_list.append({"ord":num_ord,"dat":dat,"tot":round(dati["totale"],2),"righe":dati["righe"]})
+    ord_cli_parts.append('"'+esc(cod_cli)+'":'+json.dumps(ord_list, ensure_ascii=False))
+ordini_js = "var ORDINI_CLI={\n" + ",\n".join(ord_cli_parts) + "\n};"
+
 now = datetime.now().strftime("%d/%m/%Y %H:%M")
 
+# ── AGGIORNA TEMPLATE ─────────────────────────────────────────────
 with open("index_template.html", encoding="utf-8") as f:
     html = f.read()
 
 html = re.sub(r"var DATA=\[.*?\];", data_js, html, flags=re.DOTALL)
+html = re.sub(r"var CLIENTI=\[.*?\];", cli_js, html, flags=re.DOTALL)
+html = re.sub(r"var ORDINI_CLI=\{.*?\};", ordini_js, html, flags=re.DOTALL)
 html = re.sub(r'Ultimo aggiornamento: <strong[^>]*>[^<]*</strong>',
-              'Ultimo aggiornamento: <strong id="update-date">' + now + '</strong>', html)
-html = re.sub(r'<span class="topbar-badge">\d+ articoli</span>',
+              'Ultimo aggiornamento: <strong id="update-date">'+now+'</strong>', html)
+html = re.sub(r'<span class="topbar-badge">[^<]*</span>',
               f'<span class="topbar-badge">{len(data)} articoli</span>', html)
 
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(html)
-
-print(f"OK: {len(data)} articoli, {sum(1 for p in data if p['ord'])} con ordini — {now}")
+print(f"OK: {len(data)} art, {len(cli_list)} clienti — {now}")
