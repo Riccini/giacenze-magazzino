@@ -138,7 +138,9 @@ wb_saldi = load_workbook(saldi_file, read_only=True)
 data = []
 for row in wb_saldi.active.iter_rows(min_row=2, values_only=True):
     c = str(row[0] or "").strip()
+    mag = str(row[1] or "").strip()
     if c not in codici_lista: continue
+    if mag != "000": continue  # prendi solo magazzino principale
     try: i = int(float(row[8] or 0))
     except: i = 0
     try: l = int(float(row[11] or 0))
