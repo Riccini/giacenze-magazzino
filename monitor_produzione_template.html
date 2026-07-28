@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Monitor Produzione</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<style>
+  body { margin: 0; background: #14171A; font-family: -apple-system, "Segoe UI", sans-serif; }
+  * { box-sizing: border-box; }
+  button { font-family: inherit; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+const DATA = {};
+
+function colorForPct(pct) { if (pct < 0) return '#E5484D'; if (pct < 25) return '#F5A623'; return '#4DD0C4'; }
+function fmt(n) { return Math.round(n).toLocaleString('it-IT'); }
+function fmtData(d) { if (!d) return 'n.d.'; const p = d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
+
+function ArticoloTank({ articolo, onClick }) {
+  const w = 44, h = 76;
+  const color = colorForPct(articolo.pct);
+  const hasStock = articolo.giacenza > 0;
+  const ratio = hasStock ? Math.max(0, Math.min(1, articolo.disponibile / articolo.giacenza)) : 0;
+  const overlayHeight = ratio * (h - 6);
+  const bgHeight = hasStock ? (h - 6) : 0;
+  const clipId = 'clip-' + articolo.codice.replace(/[^a-zA-Z0-9]/g, '');
+  const negativo = articolo.disponibile < 0;
+
+  return (
+    <button onClick={onClick} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4,padding:6,borderRadius:6,background:'none',border:'none',cursor:'pointer',width:92}}
+      onMouseOver={e=>e.currentTarget.style.background='#242830'} onMouseOut={e=>e.currentTarget.style.background='none'}>
+      <div style={{fontSize:9,color:'#9AA0A8',lineHeight:1.2,textAlign:'center',height:28,overflow:'hidden'}}>
+        {articolo.nome_visualizzare || articolo.descrizione}
+      </div>
+      <div style={{position:'relative', width:w, height:h}}>
+        <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+          <rect x="1" y="1" width={w-2} height={h-2} rx="5" fill="#1A1D21" stroke="#3A4048" strokeWidth="1.5" />
+          <clipPath id={clipId}><rect x="3" y="3" width={w-6} height={h-6} rx="3" /></clipPath>
+          <rect x="3" y={3+(h-6-bgHeight)} width={w-6} height={bgHeight} fill="#3A4048" clipPath={`url(#${clipId})`} />
+          <rect x="3" y={3+(h-6-overlayHeight)} width={w-6} height={overlayHeight} fill={color} opacity="0.9" clipPath={`url(#${clipId})`} />
+        </svg>
+        {negativo && (<div style={{position:'absolute',bottom:-6,left:'50%',transform:'translateX(-50%)',background:'#E5484D',borderRadius:3,padding:'0 4px',fontSize:8,color:'#1A1D21',fontWeight:700,whiteSpace:'nowrap'}}>SOTTO 0</div>)}
+      </div>
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center',lineHeight:1.2,marginTop:4}}>
+        <div style={{fontFamily:'monospace',fontSize:10,color:'#9AA0A8'}}>{fmt(articolo.giacenza)}</div>
+        <div style={{fontFamily:'monospace',fontSize:11,fontWeight:600,color}}>{fmt(articolo.disponibile)}</div>
+      </div>
+    </button>
+  );
+}
+
+function DetailModal({ articolo, categoria, diametro, onClose }) {
+  if (!articolo) return null;
+  const color = colorForPct(articolo.pct);
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50,padding:16}} onClick={onClose}>
+      <div style={{background:'#1E2227',borderRadius:8,border:'1px solid #3A4048',maxWidth:420,width:'100%',padding:16,maxHeight:'85vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:12}}>
+          <div>
+            <div style={{fontSize:13,fontWeight:600,color:'#E8E6E1'}}>{articolo.nome_visualizzare || articolo.descrizione}</div>
+            <div style={{fontSize:11,fontFamily:'monospace',color:'#6B7280'}}>{articolo.codice} · {categoria} · ⌀{diametro}</div>
+          </div>
+          <button onClick={onClose} style={{background:'none',border:'none',color:'#6B7280',cursor:'pointer',fontSize:16}}>✕</button>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
+          <div style={{background:'#181B1F',borderRadius:4,padding:8,textAlign:'center'}}>
+            <div style={{fontFamily:'monospace',fontSize:13,color:'#C5C9D0'}}>{fmt(articolo.giacenza)}</div>
+            <div style={{fontSize:10,color:'#6B7280'}}>Giacenza (a terra)</div>
+          </div>
+          <div style={{background:'#181B1F',borderRadius:4,padding:8,textAlign:'center'}}>
+            <div style={{fontFamily:'monospace',fontSize:13,color:'#C5C9D0'}}>{fmt(articolo.impegnato)}</div>
+            <div style={{fontSize:10,color:'#6B7280'}}>Impegnato</div>
+          </div>
+          <div style={{background:'#181B1F',borderRadius:4,padding:8,textAlign:'center'}}>
+            <div style={{fontFamily:'monospace',fontSize:13,fontWeight:600,color}}>{fmt(articolo.disponibile)}</div>
+            <div style={{fontSize:10,color:'#6B7280'}}>Vendibile netto</div>
+          </div>
+        </div>
+        {articolo.ordini && articolo.ordini.length>0 ? (
+          <div>
+            <div style={{fontSize:10,color:'#6B7280',textTransform:'uppercase',marginBottom:4}}>Ordini aperti · dal piu' recente al piu' vecchio</div>
+            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+              {[...articolo.ordini].sort((a,b)=>{
+                if(!a.data_evasione) return 1;
+                if(!b.data_evasione) return -1;
+                return b.data_evasione.localeCompare(a.data_evasione);
+              }).map((o,i)=>(
+                <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,padding:'6px 8px',background:'#181B1F',borderRadius:4}}>
+                  <div>
+                    <div style={{color:'#C5C9D0'}}>{o.cliente}</div>
+                    <div style={{fontSize:10,color:'#6B7280',fontFamily:'monospace'}}>consegna: {fmtData(o.data_evasione)}</div>
+                  </div>
+                  <span style={{fontFamily:'monospace',color:'#8A9099'}}>{fmt(o.quantita)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (<div style={{fontSize:12,color:'#6B7280'}}>Nessun ordine aperto per questo articolo</div>)}
+      </div>
+    </div>
+  );
+}
+
+function CategoriaHome({ onSelect }) {
+  return (
+    <div style={{display:'flex',flexWrap:'wrap',gap:12}}>
+      {DATA.categorie.map(cat=>(
+        <button key={cat.categoria} onClick={()=>onSelect(cat.categoria)}
+          style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,background:'#1E2227',border:'1px solid #2A3038',borderRadius:8,padding:12,textAlign:'center',cursor:'pointer',width:130,height:130}}
+          onMouseOver={e=>e.currentTarget.style.background='#242830'} onMouseOut={e=>e.currentTarget.style.background='#1E2227'}>
+          {cat.n_critici>0 && (<span style={{background:'rgba(229,72,77,0.15)',color:'#E5484D',fontSize:10,fontWeight:500,padding:'2px 8px',borderRadius:12}}>⚠ {cat.n_critici}</span>)}
+          <div style={{fontSize:13,fontWeight:600,color:'#E8E6E1',lineHeight:1.2}}>{cat.categoria}</div>
+          <div style={{fontSize:11,color:'#6B7280'}}>{cat.n_articoli} articoli</div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CategoriaDetail({ categoria, onBack, onSelectArticolo }) {
+  const cat = DATA.categorie.find(c=>c.categoria===categoria);
+  return (
+    <div>
+      <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:4,fontSize:13,color:'#8A9099',background:'none',border:'none',cursor:'pointer',marginBottom:16}}>← Tutte le categorie</button>
+      <h2 style={{fontSize:17,fontWeight:600,color:'#E8E6E1',marginBottom:4}}>{cat.categoria}</h2>
+      <p style={{fontSize:12,color:'#6B7280',marginBottom:16}}>
+        {cat.n_articoli} articoli · Giacenza tot. <span style={{fontFamily:'monospace'}}>{fmt(cat.giacenza)}</span> ·
+        Vendibile netto tot. <span style={{fontFamily:'monospace',color:colorForPct(cat.pct)}}>{fmt(cat.disponibile)}</span>
+      </p>
+      <div style={{display:'flex',flexDirection:'column',gap:16}}>
+        {cat.diametri.map(d=>(
+          <div key={d.diametro}>
+            <div style={{fontSize:11,color:'#8A9099',marginBottom:6,fontFamily:'monospace',display:'flex',alignItems:'center',gap:6}}>
+              ⌀ {d.diametro} {d.allerta && <span style={{color:'#E5484D'}}>⚠</span>}
+            </div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:2}}>
+              {d.articoli.map(a=>(<ArticoloTank key={a.codice} articolo={a} onClick={()=>onSelectArticolo({articolo:a, categoria:cat.categoria, diametro:d.diametro})} />))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReportView({ onSelectArticolo }) {
+  const grouped = {};
+  DATA.report_critici.forEach(a=>{ if(!grouped[a.categoria]) grouped[a.categoria]=[]; grouped[a.categoria].push(a); });
+  return (
+    <div>
+      <p style={{fontSize:12,color:'#6B7280',marginBottom:16}}>{DATA.report_critici.length} articoli con vendibile netto sotto zero · ordinati dal piu' critico</p>
+      <div style={{display:'flex',flexDirection:'column',gap:16}}>
+        {Object.entries(grouped).map(([categoria,articoli])=>(
+          <div key={categoria}>
+            <h3 style={{fontSize:13,fontWeight:600,color:'#C5C9D0',marginBottom:8}}>{categoria} <span style={{fontSize:10,fontWeight:400,color:'#6B7280'}}>({articoli.length})</span></h3>
+            <div style={{display:'flex',flexDirection:'column',gap:4}}>
+              {articoli.map(a=>(
+                <button key={a.codice} onClick={()=>onSelectArticolo({articolo:a, categoria:a.categoria, diametro:a.diametro})}
+                  style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#1E2227',borderRadius:4,padding:'6px 12px',border:'1px solid #2A3038',textAlign:'left',cursor:'pointer'}}>
+                  <div>
+                    <span style={{fontSize:12,color:'#E8E6E1'}}>{a.nome_visualizzare || a.descrizione}</span>
+                    <span style={{fontSize:10,fontFamily:'monospace',color:'#6B7280',marginLeft:8}}>{a.codice} · ⌀{a.diametro}</span>
+                  </div>
+                  <span style={{fontFamily:'monospace',fontSize:12,fontWeight:600,color:colorForPct(a.pct)}}>{fmt(a.disponibile)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [view, setView] = useState('home');
+  const [selectedCat, setSelectedCat] = useState(null);
+  const [detail, setDetail] = useState(null);
+
+  return (
+    <div style={{minHeight:'100vh',background:'#14171A',padding:24}}>
+      <div style={{maxWidth:1100,margin:'0 auto'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:24}}>
+          <div>
+            <a href="index.html" style={{fontSize:11,color:'#6B7280',textDecoration:'none'}}>← Giacenze Magazzino</a>
+            <h1 style={{fontSize:17,fontWeight:600,color:'#E8E6E1',margin:'2px 0 0'}}>⛽ Monitor Produzione</h1>
+            <p style={{fontSize:11,color:'#6B7280',margin:0}}>Materiale standard · aggiornato {DATA.generato}</p>
+          </div>
+          <div style={{display:'flex',gap:4,background:'#1E2227',borderRadius:8,padding:4}}>
+            <button onClick={()=>{setView('home'); setSelectedCat(null);}}
+              style={{padding:'6px 12px',borderRadius:6,fontSize:12,fontWeight:500,background: view!=='report'?'#2A3038':'transparent', color: view!=='report'?'#E8E6E1':'#8A9099', border:'none',cursor:'pointer'}}>Categorie</button>
+            <button onClick={()=>setView('report')}
+              style={{padding:'6px 12px',borderRadius:6,fontSize:12,fontWeight:500,display:'flex',alignItems:'center',gap:6,background: view==='report'?'#2A3038':'transparent', color: view==='report'?'#E8E6E1':'#8A9099', border:'none',cursor:'pointer'}}>
+              Report criticita'
+              <span style={{background:'#E5484D',color:'#1A1D21',fontSize:10,padding:'1px 6px',borderRadius:8,fontWeight:600}}>{DATA.report_critici.length}</span>
+            </button>
+          </div>
+        </div>
+
+        {view==='report' && <ReportView onSelectArticolo={setDetail} />}
+        {view!=='report' && selectedCat===null && <CategoriaHome onSelect={(c)=>{setSelectedCat(c); setView('categoria');}} />}
+        {view!=='report' && selectedCat!==null && <CategoriaDetail categoria={selectedCat} onBack={()=>setSelectedCat(null)} onSelectArticolo={setDetail} />}
+      </div>
+      <DetailModal articolo={detail && detail.articolo} categoria={detail && detail.categoria} diametro={detail && detail.diametro} onClose={()=>setDetail(null)} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
