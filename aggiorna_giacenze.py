@@ -8,6 +8,7 @@ FOGLIO_MAP = {
     "Corrugar Rotoli":          ("Corrugar",   "Rotoli"),
     "Corrugar Rotoli Drenaggio":("Corrugar",   "Rotoli Drenaggio"),
     "Corrugar Drenaggio":       ("Corrugar",   "Barre Drenaggio"),
+    "Corrugar Barre Drenaggio": ("Corrugar",   "Barre Drenaggio"),
     "Corrugar Barre":           ("Corrugar",   "Barre"),
     "Sedici Plus":              ("SediciPlus", "Tubi"),
     "Kingcor":                  ("Kingcor",    "Tubi"),
@@ -117,6 +118,7 @@ for sn in wb_lista.sheetnames:
     for row in wb_lista[sn].iter_rows(min_row=2, values_only=True):
         c = str(row[0] or "").strip()
         diam = str(row[2] or "").strip() if row[2] is not None else ""
+        var_custom = str(row[3] or "").strip() if len(row) > 3 and row[3] else ""
         desc = str(row[1] or "").strip().upper()
         if not c: continue
         if macro == "Corrugar" and tipo_foglio in ("Rotoli","Barre"):
@@ -125,9 +127,9 @@ for sn in wb_lista.sheetnames:
             tipo = tipo_foglio
         if c in codici_lista:
             if codici_lista[c]["tipo"] == "Barre" and tipo == "Rotoli":
-                codici_lista[c] = {"macro": macro, "tipo": tipo, "diam": diam}
+                codici_lista[c] = {"macro": macro, "tipo": tipo, "diam": diam, "var": var_custom}
         else:
-            codici_lista[c] = {"macro": macro, "tipo": tipo, "diam": diam}
+            codici_lista[c] = {"macro": macro, "tipo": tipo, "diam": diam, "var": var_custom}
 print(f"Lista articoli: {len(codici_lista)} codici")
 
 # ── SALDI ─────────────────────────────────────────────────────────
@@ -148,7 +150,8 @@ for row in wb_saldi.active.iter_rows(min_row=2, values_only=True):
     except: l = 0
     info = codici_lista[c]
     data.append({"c":c,"d":str(row[7] or "").strip(),"um":"ML",
-                 "i":i,"l":l,"macro":info["macro"],"tipo":info["tipo"],"diam":info["diam"]})
+                 "i":i,"l":l,"macro":info["macro"],"tipo":info["tipo"],"diam":info["diam"],
+                 "var_custom":info.get("var","")})
 print(f"Articoli: {len(data)}")
 
 # ── PORTAFOGLIO ORDINI ────────────────────────────────────────────
@@ -184,7 +187,7 @@ if ord_file:
 
 # ── VARIANTI + DEDUP ──────────────────────────────────────────────
 for p in data:
-    p["var"] = get_var(p)
+    p["var"] = p.pop("var_custom") if p.get("var_custom") else get_var(p)
     p["ord"] = ordini_art.get(p["c"], [])
 groups = defaultdict(list)
 for p in data: groups[(p["macro"],p["tipo"],p["diam"],p["var"])].append(p)
