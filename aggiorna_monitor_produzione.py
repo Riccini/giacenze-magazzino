@@ -151,7 +151,7 @@ for categoria, diametri_dict in categorie_dict.items():
         "pct": calc_pct(cat_giacenza, cat_impegnato, cat_disponibile),
         "n_articoli": n_articoli,
         "n_critici": cat_critici,
-        "diametri": sorted(diametri_output, key=lambda d: d["disponibile"])
+        "diametri": sorted(diametri_output, key=lambda d: (isinstance(d["diametro"], str), d["diametro"]))
     })
 
 categorie_output.sort(key=lambda c: c["disponibile"])

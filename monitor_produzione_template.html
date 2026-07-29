@@ -109,14 +109,14 @@ function DetailModal({ articolo, categoria, diametro, onClose }) {
 
 function CategoriaHome({ onSelect }) {
   return (
-    <div style={{display:'flex',flexWrap:'wrap',gap:12}}>
+    <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:14}}>
       {DATA.categorie.map(cat=>(
         <button key={cat.categoria} onClick={()=>onSelect(cat.categoria)}
-          style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,background:'#1E2227',border:'1px solid #2A3038',borderRadius:8,padding:12,textAlign:'center',cursor:'pointer',width:130,height:130}}
+          style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:10,background:'#1E2227',border:'1px solid #2A3038',borderRadius:12,padding:16,textAlign:'center',cursor:'pointer',width:'100%',aspectRatio:'1'}}
           onMouseOver={e=>e.currentTarget.style.background='#242830'} onMouseOut={e=>e.currentTarget.style.background='#1E2227'}>
-          {cat.n_critici>0 && (<span style={{background:'rgba(229,72,77,0.15)',color:'#E5484D',fontSize:10,fontWeight:500,padding:'2px 8px',borderRadius:12}}>⚠ {cat.n_critici}</span>)}
-          <div style={{fontSize:13,fontWeight:600,color:'#E8E6E1',lineHeight:1.2}}>{cat.categoria}</div>
-          <div style={{fontSize:11,color:'#6B7280'}}>{cat.n_articoli} articoli</div>
+          {cat.n_critici>0 && (<span style={{background:'rgba(229,72,77,0.15)',color:'#E5484D',fontSize:13,fontWeight:600,padding:'3px 10px',borderRadius:12}}>⚠ {cat.n_critici}</span>)}
+          <div style={{fontSize:17,fontWeight:700,color:'#E8E6E1',lineHeight:1.25}}>{cat.categoria}</div>
+          <div style={{fontSize:13,color:'#8A9099'}}>{cat.n_articoli} articoli</div>
         </button>
       ))}
     </div>
