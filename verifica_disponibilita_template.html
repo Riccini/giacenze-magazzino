@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Verifica Disponibilità</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<style>
+  body { margin: 0; background: #14171A; font-family: -apple-system, "Segoe UI", sans-serif; }
+  * { box-sizing: border-box; }
+  button, input { font-family: inherit; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useEffect } = React;
+
+const DATA = {};
+
+const ALL_ARTICOLI = [];
+(DATA.categorie || []).forEach(cat => {
+  cat.diametri.forEach(d => {
+    d.articoli.forEach(a => {
+      ALL_ARTICOLI.push({ ...a, categoria: cat.categoria, diametro: d.diametro });
+    });
+  });
+});
+
+function fmt(n) { return Math.round(n).toLocaleString('it-IT'); }
+function normalizza(s) { return (s || '').toString().toLowerCase(); }
+function normalizzaCompatta(s) { return normalizza(s).replace(/\s+/g, ''); }
+
+function analizzaRichiesta(testo) {
+  const t = normalizza(testo);
+  const tipo = /rotol/.test(t) ? 'rotoli' : (/barr/.test(t) ? 'barre' : null);
+
+  let pn = null, sn = null;
+  let m = t.match(/pn\s*(\d+)/);
+  if (m) pn = parseInt(m[1]);
+  m = t.match(/sn\s*(\d+)/);
+  if (m) sn = parseInt(m[1]);
+
+  let diametro = null;
+  m = t.match(/(\d+)\s*(?:pn|sn)/);
+  if (m) diametro = parseInt(m[1]);
+  if (diametro === null) {
+    m = t.match(/(?:diametro|dn|⌀)\s*(\d+)/);
+    if (m) diametro = parseInt(m[1]);
+  }
+
+  let lunghezza = null;
+  m = t.match(/da\s*(\d+)\s*(?:mt|m|metri)\b/);
+  if (m) lunghezza = parseInt(m[1]);
+
+  let quantita = null;
+  m = t.match(/total\w*\s*(?:di)?\s*([\d.,]+)/)
+    || t.match(/(?:mi\s+servono|servono|ne\s+servono|serve|necessit\w*)\s*([\d.,]+)/)
+    || t.match(/per\s+([\d.,]+)\s*(?:mt|m|metri)\b/);
+  if (m) quantita = parseInt(m[1].replace(/\./g, '').replace(/,/g, ''));
+
+  return { tipo, pn, sn, diametro, lunghezza, quantita };
+}
+
+function punteggioMatch(query, articolo) {
+  const parsed = analizzaRichiesta(query);
+  const testoArt = normalizza(`${articolo.categoria} ${articolo.nome_visualizzare} ${articolo.descrizione} ${articolo.diametro}`);
+  const testoArtCompatto = normalizzaCompatta(testoArt);
+  const parole = normalizza(query).split(/\s+/).filter(w => w.length > 1);
+
+  let punti = 0;
+  parole.forEach(p => { if (testoArt.includes(p)) punti += 1; });
+  if (parsed.diametro !== null && articolo.diametro === parsed.diametro) punti += 6;
+  if (parsed.pn !== null && testoArtCompatto.includes('pn' + parsed.pn)) punti += 6;
+  if (parsed.sn !== null && testoArtCompatto.includes('sn' + parsed.sn)) punti += 6;
+  if (parsed.tipo && normalizzaCompatta(articolo.categoria).includes(parsed.tipo)) punti += 2;
+  if (parsed.lunghezza !== null && testoArtCompatto.includes(parsed.lunghezza + 'm')) punti += 3;
+
+  return punti;
+}
+
+function statoDisponibilita(pct) {
+  if (pct < 0) return { colore:'#E5484D', label:'Esaurito' };
+  if (pct < 25) return { colore:'#F5A623', label:'Scorte limitate' };
+  return { colore:'#4DD0C4', label:'Disponibile' };
+}
+
+function RisultatoDisponibilita({ articolo, quantita }) {
+  const stato = statoDisponibilita(articolo.pct);
+  let etichetta, msg, badgeColor;
+
+  if (quantita === null) {
+    etichetta = stato.label.toUpperCase();
+    badgeColor = stato.colore;
+    msg = articolo.disponibile > 0
+      ? `Disponibilità attuale: ${fmt(articolo.disponibile)} mt.`
+      : `Al momento non risulta disponibilità.`;
+  } else if (articolo.disponibile >= quantita) {
+    etichetta = '✅ DISPONIBILE';
+    badgeColor = '#4DD0C4';
+    msg = `Sì, ${fmt(quantita)} mt sono disponibili.`;
+  } else if (articolo.disponibile > 0) {
+    etichetta = '⚠️ PARZIALMENTE DISPONIBILE';
+    badgeColor = '#F5A623';
+    msg = `Disponibili solo ${fmt(articolo.disponibile)} mt su ${fmt(quantita)} richiesti.`;
+  } else {
+    etichetta = '❌ NON DISPONIBILE';
+    badgeColor = '#E5484D';
+    msg = `Non risulta disponibilità per la quantità richiesta.`;
+  }
+
+  return (
+    <div style={{ background:'#1E2227', border:'1px solid #2A3038', borderRadius:16, padding:24, marginTop:20 }}>
+      <div style={{ fontSize:17, color:'#8A9099', marginBottom:6 }}>{articolo.categoria} · ⌀ {articolo.diametro}</div>
+      <div style={{ fontSize:22, fontWeight:700, color:'#E8E6E1', marginBottom:16 }}>{articolo.nome_visualizzare || articolo.descrizione}</div>
+      <div style={{ display:'inline-block', background: badgeColor + '26', color: badgeColor, fontSize:20, fontWeight:700, padding:'10px 20px', borderRadius:12, marginBottom:14 }}>
+        {etichetta}
+      </div>
+      <p style={{ fontSize:18, color:'#C5C9D0', margin:0 }}>{msg}</p>
+    </div>
+  );
+}
+
+function App() {
+  const [testo, setTesto] = useState('');
+  const [selezionato, setSelezionato] = useState(null);
+  const [quantitaSelezionata, setQuantitaSelezionata] = useState(null);
+  const boxRef = useRef(null);
+  const [aperto, setAperto] = useState(false);
+
+  const testoNormalizzatoSelezione = selezionato ? (selezionato.nome_visualizzare || selezionato.descrizione) : null;
+  const mostraSuggerimenti = aperto && testo.trim().length >= 2 && testo !== testoNormalizzatoSelezione;
+
+  const suggerimenti = mostraSuggerimenti
+    ? ALL_ARTICOLI.map(a => ({ a, score: punteggioMatch(testo, a) }))
+        .filter(x => x.score > 0)
+        .sort((x, y) => y.score - x.score)
+        .slice(0, 8)
+        .map(x => x.a)
+    : [];
+
+  const selezionaArticolo = (a) => {
+    const q = analizzaRichiesta(testo).quantita;
+    setQuantitaSelezionata(q);
+    setSelezionato(a);
+    setTesto(a.nome_visualizzare || a.descrizione);
+    setAperto(false);
+  };
+
+  useEffect(() => {
+    function handleClickFuori(e) {
+      if (boxRef.current && !boxRef.current.contains(e.target)) setAperto(false);
+    }
+    document.addEventListener('mousedown', handleClickFuori);
+    return () => document.removeEventListener('mousedown', handleClickFuori);
+  }, []);
+
+  return (
+    <div style={{ minHeight:'100vh', background:'#14171A', padding:'50px 16px', display:'flex', flexDirection:'column', alignItems:'center' }}>
+      <div style={{ width:'100%', maxWidth:640 }} ref={boxRef}>
+        <div style={{ textAlign:'center', marginBottom:36 }}>
+          <h1 style={{ fontSize:30, fontWeight:700, color:'#E8E6E1', margin:0 }}>Verifica Disponibilità</h1>
+          <p style={{ fontSize:15, color:'#8A9099', marginTop:8 }}>Scrivi cosa ti serve</p>
+        </div>
+
+        <div style={{ position:'relative' }}>
+          <input
+            type="text"
+            value={testo}
+            onChange={e => { setTesto(e.target.value); setAperto(true); setSelezionato(null); }}
+            onFocus={() => setAperto(true)}
+            placeholder="Es: corrugato grigio 160, oppure kingcor SN8 160..."
+            style={{ width:'100%', fontSize:19, padding:'18px 22px', borderRadius:30, background:'#1E2227', border:'2px solid #3A4048', color:'#E8E6E1', outline:'none' }}
+          />
+
+          {mostraSuggerimenti && (
+            <div style={{ position:'absolute', top:'calc(100% + 8px)', left:0, right:0, background:'#1E2227', border:'1px solid #3A4048', borderRadius:16, overflow:'hidden', zIndex:10, boxShadow:'0 12px 28px rgba(0,0,0,0.4)' }}>
+              {suggerimenti.length === 0 && (
+                <div style={{ padding:'16px 20px', color:'#8A9099', fontSize:15 }}>Nessun articolo simile trovato</div>
+              )}
+              {suggerimenti.map(a => {
+                const stato = statoDisponibilita(a.pct);
+                return (
+                  <button key={a.codice} onClick={() => selezionaArticolo(a)}
+                    style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%', padding:'14px 20px', background:'none', border:'none', borderBottom:'1px solid #2A3038', textAlign:'left', cursor:'pointer' }}
+                    onMouseOver={e => e.currentTarget.style.background = '#242830'}
+                    onMouseOut={e => e.currentTarget.style.background = 'none'}>
+                    <div>
+                      <div style={{ fontSize:16, color:'#E8E6E1' }}>{a.nome_visualizzare || a.descrizione}</div>
+                      <div style={{ fontSize:13, color:'#8A9099' }}>{a.categoria} · ⌀ {a.diametro}</div>
+                    </div>
+                    <span style={{ width:10, height:10, borderRadius:'50%', background:stato.colore, flexShrink:0, marginLeft:12 }}></span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {selezionato && <RisultatoDisponibilita articolo={selezionato} quantita={quantitaSelezionata} />}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

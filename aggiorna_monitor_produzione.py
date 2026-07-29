@@ -207,7 +207,7 @@ report_critici.sort(key=lambda a: a["disponibile"])
 now = datetime.now().strftime("%d/%m/%Y %H:%M")
 output = {"generato": now, "categorie": categorie_output, "report_critici": report_critici}
 
-# ── INSERISCO NEL TEMPLATE ──
+# ── INSERISCO NEL TEMPLATE (Monitor Produzione) ──
 with open("monitor_produzione_template.html", encoding="utf-8") as f:
     html = f.read()
 
@@ -220,3 +220,16 @@ with open("monitor_produzione.html", "w", encoding="utf-8") as f:
     f.write(html)
 
 print(f"OK: {len(anagrafica)} articoli, {len(report_critici)} critici — {now}")
+
+# ── INSERISCO NEL TEMPLATE (Verifica Disponibilita) - stessi dati ──
+with open("verifica_disponibilita_template.html", encoding="utf-8") as f:
+    html2 = f.read()
+
+idx2 = html2.index("const DATA = ")
+idx2_end = html2.index(";", idx2) + 1
+html2 = html2[:idx2] + data_js + html2[idx2_end:]
+
+with open("verifica_disponibilita.html", "w", encoding="utf-8") as f:
+    f.write(html2)
+
+print("OK: verifica_disponibilita.html generato")
