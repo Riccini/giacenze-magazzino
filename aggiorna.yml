@@ -1,0 +1,40 @@
+name: Aggiorna Giacenze
+
+on:
+  push:
+    paths:
+      - 'Stampa_saldi*.xlsx'
+      - 'Stampa_portafoglio*.xlsx'
+      - 'Lista Articoli per consultazione.xlsx'
+  workflow_dispatch:
+
+jobs:
+  aggiorna:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Installa dipendenze
+        run: pip install openpyxl
+
+      - name: Genera index.html
+        run: python aggiorna_giacenze.py
+
+      - name: Genera monitor_produzione.html
+        run: python aggiorna_monitor_produzione.py
+
+      - name: Pubblica pagine aggiornate
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add index.html monitor_produzione.html
+          git commit -m "Aggiornamento giacenze $(date '+%d/%m/%Y %H:%M')" || echo "Nessuna modifica"
+          git push
