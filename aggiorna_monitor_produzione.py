@@ -7,19 +7,34 @@ from openpyxl import load_workbook
 # ── LISTA ARTICOLI (anagrafica: codice -> categoria/diametro/nome) ──
 wb_lista = load_workbook("Lista Articoli per consultazione.xlsx", read_only=True, data_only=True)
 anagrafica = {}
+duplicati_ignorati = []
 for sheet in wb_lista.sheetnames:
     ws = wb_lista[sheet]
     for row in ws.iter_rows(min_row=2, values_only=True):
         if not row[0]:
             continue
         codice = str(row[0]).strip()
-        anagrafica[codice] = {
+        nome_vis = (row[3] or "").strip() if len(row) > 3 and row[3] else ""
+        entry = {
             "categoria": sheet.strip(),
             "descrizione": row[1],
             "diametro": row[2],
-            "nome_visualizzare": (row[3] or "").strip() if len(row) > 3 and row[3] else ""
+            "nome_visualizzare": nome_vis
         }
+        # Alcuni codici compaiono per errore in piu' fogli (es. un rotolo
+        # duplicato anche nel foglio Barre, con la riga incompleta). In
+        # quel caso teniamo sempre la voce con il nome da visualizzare
+        # compilato, a prescindere dall'ordine dei fogli nel file.
+        if codice not in anagrafica:
+            anagrafica[codice] = entry
+        elif not anagrafica[codice]["nome_visualizzare"] and nome_vis:
+            anagrafica[codice] = entry
+        elif anagrafica[codice]["categoria"] != sheet.strip():
+            duplicati_ignorati.append((codice, anagrafica[codice]["categoria"], sheet.strip()))
+
 print(f"Lista articoli: {len(anagrafica)} codici")
+if duplicati_ignorati:
+    print(f"Duplicati tra fogli ignorati ({len(duplicati_ignorati)}): {duplicati_ignorati}")
 
 # ── SALDI ARTICOLI (giacenza SLQTAPER, impegnato SLQTIPER, ordinato SLQTOPER) ──
 saldi_file = next(Path(".").glob("Stampa_saldi*.xlsx"), None)
