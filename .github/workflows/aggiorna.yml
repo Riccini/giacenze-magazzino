@@ -6,6 +6,7 @@ on:
       - 'Stampa_saldi*.xlsx'
       - 'Stampa_portafoglio*.xlsx'
       - 'Lista Articoli per consultazione.xlsx'
+  workflow_dispatch:
 
 jobs:
   aggiorna:
@@ -27,10 +28,21 @@ jobs:
       - name: Genera index.html
         run: python aggiorna_giacenze.py
 
-      - name: Pubblica index.html
+      - name: Genera monitor_produzione.html
+        run: python aggiorna_monitor_produzione.py
+
+      - name: Pubblica pagine aggiornate
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add index.html
+          git add index.html monitor_produzione.html
           git commit -m "Aggiornamento giacenze $(date '+%d/%m/%Y %H:%M')" || echo "Nessuna modifica"
-          git push
+          for i in 1 2 3 4 5; do
+            if git push; then
+              echo "Push riuscito al tentativo $i"
+              break
+            fi
+            echo "Push rifiutato (probabile esecuzione parallela), ritento tra 5s..."
+            sleep 5
+            git pull --rebase
+          done
