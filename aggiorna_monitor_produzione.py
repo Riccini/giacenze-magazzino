@@ -77,12 +77,27 @@ else:
     print("ATTENZIONE: file Stampa_portafoglio*.xlsx non trovato, procedo senza dettaglio ordini")
 
 
+import re
+
 def calc_pct(giacenza, impegnato, disponibile):
     if giacenza and giacenza != 0:
         return round((disponibile / giacenza) * 100, 1)
     elif impegnato and impegnato > 0:
         return -100.0
     return 0.0
+
+
+def extract_rating(nome):
+    """Estrae il valore numerico di classi tipo SN8, PN16, 450N, SDR11 per l'ordinamento orizzontale."""
+    if not nome:
+        return (999, "")
+    m = re.match(r'^(\d+)\s*N\b', nome)
+    if m:
+        return (int(m.group(1)), nome)
+    m = re.match(r'^[A-Za-z]+(\d+)', nome)
+    if m:
+        return (int(m.group(1)), nome)
+    return (999, nome)
 
 
 # ── COSTRUISCO STRUTTURA categoria -> diametro -> articoli ──
@@ -132,7 +147,7 @@ for categoria, diametri_dict in categorie_dict.items():
             "disponibile": d_disponibile,
             "allerta": d_allerta,
             "pct": calc_pct(d_giacenza, d_impegnato, d_disponibile),
-            "articoli": sorted(articoli, key=lambda a: a["disponibile"])
+            "articoli": sorted(articoli, key=lambda a: extract_rating(a["nome_visualizzare"] or a["descrizione"] or ""))
         })
         cat_giacenza += d_giacenza
         cat_impegnato += d_impegnato
