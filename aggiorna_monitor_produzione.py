@@ -184,7 +184,17 @@ for categoria, diametri_dict in categorie_dict.items():
         "diametri": sorted(diametri_output, key=lambda d: (isinstance(d["diametro"], str), d["diametro"]))
     })
 
-categorie_output.sort(key=lambda c: c["disponibile"])
+ORDINE_CATEGORIE = [
+    "Corrugar Rotoli", "Corrugar Barre", "Corrugar Rotoli Drenaggio", "Corrugar Barre Drenaggio",
+    "PE 100 Rotoli", "PE 100 Barre", "PE 100 Gas Rotoli", "PE 100 Gas Barre",
+    "BD IIP", "BD Irriga", "RC2", "Fluid Superfluid",
+    "Sedici Plus", "Kingcor", "Tripplo", "Monopipe", "Monotubo"
+]
+
+def ordine_categoria(nome):
+    return ORDINE_CATEGORIE.index(nome) if nome in ORDINE_CATEGORIE else len(ORDINE_CATEGORIE)
+
+categorie_output.sort(key=lambda c: ordine_categoria(c["categoria"]))
 
 report_critici = []
 for categoria, diametri_dict in categorie_dict.items():

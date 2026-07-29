@@ -23,33 +23,33 @@ function fmt(n) { return Math.round(n).toLocaleString('it-IT'); }
 function fmtData(d) { if (!d) return 'n.d.'; const p = d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
 
 function ArticoloTank({ articolo, onClick }) {
-  const w = 60, h = 100;
+  const w = 90, h = 150;
   const color = colorForPct(articolo.pct);
   const hasStock = articolo.giacenza > 0;
   const ratio = hasStock ? Math.max(0, Math.min(1, articolo.disponibile / articolo.giacenza)) : 0;
-  const overlayHeight = ratio * (h - 8);
-  const bgHeight = hasStock ? (h - 8) : 0;
+  const overlayHeight = ratio * (h - 10);
+  const bgHeight = hasStock ? (h - 10) : 0;
   const clipId = 'clip-' + articolo.codice.replace(/[^a-zA-Z0-9]/g, '');
   const negativo = articolo.disponibile < 0;
 
   return (
-    <button onClick={onClick} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,padding:8,borderRadius:8,background:'none',border:'none',cursor:'pointer',width:124}}
+    <button onClick={onClick} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8,padding:10,borderRadius:10,background:'none',border:'none',cursor:'pointer',width:190}}
       onMouseOver={e=>e.currentTarget.style.background='#242830'} onMouseOut={e=>e.currentTarget.style.background='none'}>
-      <div style={{fontSize:13,color:'#B8BEC6',lineHeight:1.25,textAlign:'center',minHeight:34,overflow:'hidden'}}>
+      <div style={{fontSize:26,color:'#C5C9D0',lineHeight:1.25,textAlign:'center',minHeight:64,overflow:'hidden'}}>
         {articolo.nome_visualizzare || articolo.descrizione}
       </div>
       <div style={{position:'relative', width:w, height:h}}>
         <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
-          <rect x="1" y="1" width={w-2} height={h-2} rx="7" fill="#1A1D21" stroke="#3A4048" strokeWidth="2" />
-          <clipPath id={clipId}><rect x="4" y="4" width={w-8} height={h-8} rx="4" /></clipPath>
-          <rect x="4" y={4+(h-8-bgHeight)} width={w-8} height={bgHeight} fill="#3A4048" clipPath={`url(#${clipId})`} />
-          <rect x="4" y={4+(h-8-overlayHeight)} width={w-8} height={overlayHeight} fill={color} opacity="0.9" clipPath={`url(#${clipId})`} />
+          <rect x="1" y="1" width={w-2} height={h-2} rx="9" fill="#1A1D21" stroke="#3A4048" strokeWidth="2" />
+          <clipPath id={clipId}><rect x="5" y="5" width={w-10} height={h-10} rx="5" /></clipPath>
+          <rect x="5" y={5+(h-10-bgHeight)} width={w-10} height={bgHeight} fill="#3A4048" clipPath={`url(#${clipId})`} />
+          <rect x="5" y={5+(h-10-overlayHeight)} width={w-10} height={overlayHeight} fill={color} opacity="0.9" clipPath={`url(#${clipId})`} />
         </svg>
-        {negativo && (<div style={{position:'absolute',bottom:-8,left:'50%',transform:'translateX(-50%)',background:'#E5484D',borderRadius:4,padding:'1px 6px',fontSize:11,color:'#1A1D21',fontWeight:700,whiteSpace:'nowrap'}}>SOTTO 0</div>)}
+        {negativo && (<div style={{position:'absolute',bottom:-10,left:'50%',transform:'translateX(-50%)',background:'#E5484D',borderRadius:5,padding:'2px 10px',fontSize:18,color:'#1A1D21',fontWeight:700,whiteSpace:'nowrap'}}>SOTTO 0</div>)}
       </div>
-      <div style={{display:'flex',flexDirection:'column',alignItems:'center',lineHeight:1.3,marginTop:6}}>
-        <div style={{fontFamily:'monospace',fontSize:14,color:'#B8BEC6'}}>{fmt(articolo.giacenza)}</div>
-        <div style={{fontFamily:'monospace',fontSize:16,fontWeight:700,color}}>{fmt(articolo.disponibile)}</div>
+      <div style={{display:'flex',flexDirection:'column',alignItems:'center',lineHeight:1.3,marginTop:10}}>
+        <div style={{fontFamily:'monospace',fontSize:28,color:'#C5C9D0'}}>{fmt(articolo.giacenza)}</div>
+        <div style={{fontFamily:'monospace',fontSize:32,fontWeight:700,color}}>{fmt(articolo.disponibile)}</div>
       </div>
     </button>
   );
@@ -127,7 +127,7 @@ function CategoriaDetail({ categoria, onBack, onSelectArticolo }) {
   const cat = DATA.categorie.find(c=>c.categoria===categoria);
   return (
     <div>
-      <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:4,fontSize:15,color:'#9AA0A8',background:'none',border:'none',cursor:'pointer',marginBottom:18}}>← Tutte le categorie</button>
+      <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:8,fontSize:20,fontWeight:600,color:'#E8E6E1',background:'#1E2227',border:'1px solid #2A3038',borderRadius:10,padding:'12px 20px',cursor:'pointer',marginBottom:20}}>← Tutte le categorie</button>
       <h2 style={{fontSize:22,fontWeight:700,color:'#E8E6E1',marginBottom:6}}>{cat.categoria}</h2>
       <p style={{fontSize:14,color:'#8A9099',marginBottom:20}}>
         {cat.n_articoli} articoli · Giacenza tot. <span style={{fontFamily:'monospace'}}>{fmt(cat.giacenza)}</span> ·
