@@ -25,24 +25,25 @@ jobs:
       - name: Installa dipendenze
         run: pip install openpyxl
 
-      - name: Genera index.html
-        run: python aggiorna_giacenze.py
-
-      - name: Genera monitor_produzione.html
-        run: python aggiorna_monitor_produzione.py
-
-      - name: Pubblica pagine aggiornate
+      - name: Genera e pubblica pagine (con retry automatico)
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add index.html monitor_produzione.html
-          git commit -m "Aggiornamento giacenze $(date '+%d/%m/%Y %H:%M')" || echo "Nessuna modifica"
+
           for i in 1 2 3 4 5; do
+            python aggiorna_giacenze.py
+            python aggiorna_monitor_produzione.py
+
+            git add index.html monitor_produzione.html verifica_disponibilita.html
+            git commit -m "Aggiornamento giacenze $(date '+%d/%m/%Y %H:%M')" || echo "Nessuna modifica da salvare"
+
             if git push; then
               echo "Push riuscito al tentativo $i"
               break
             fi
-            echo "Push rifiutato (probabile esecuzione parallela), ritento tra 5s..."
-            sleep 5
-            git pull --rebase
+
+            echo "Push rifiutato (probabile esecuzione parallela). Risincronizzo e rigenero (tentativo $i)..."
+            git fetch origin main
+            git reset --hard origin/main
+            sleep 3
           done
