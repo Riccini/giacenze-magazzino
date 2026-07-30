@@ -2,6 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
 <title>Verifica Disponibilità</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -112,12 +113,12 @@ function RisultatoDisponibilita({ articolo, quantita }) {
 
   return (
     <div style={{ background:'#1E2227', border:'1px solid #2A3038', borderRadius:16, padding:24, marginTop:20 }}>
-      <div style={{ fontSize:17, color:'#8A9099', marginBottom:6 }}>{articolo.categoria} · ⌀ {articolo.diametro}</div>
-      <div style={{ fontSize:22, fontWeight:700, color:'#E8E6E1', marginBottom:16 }}>{articolo.nome_visualizzare || articolo.descrizione}</div>
-      <div style={{ display:'inline-block', background: badgeColor + '26', color: badgeColor, fontSize:20, fontWeight:700, padding:'10px 20px', borderRadius:12, marginBottom:14 }}>
+      <div style={{ fontSize:20, color:'#8A9099', marginBottom:8 }}>{articolo.categoria} · ⌀ {articolo.diametro}</div>
+      <div style={{ fontSize:28, fontWeight:700, color:'#E8E6E1', marginBottom:18 }}>{articolo.nome_visualizzare || articolo.descrizione}</div>
+      <div style={{ display:'inline-block', background: badgeColor + '26', color: badgeColor, fontSize:26, fontWeight:700, padding:'12px 24px', borderRadius:14, marginBottom:16 }}>
         {etichetta}
       </div>
-      <p style={{ fontSize:18, color:'#C5C9D0', margin:0 }}>{msg}</p>
+      <p style={{ fontSize:22, color:'#C5C9D0', margin:0 }}>{msg}</p>
     </div>
   );
 }
@@ -158,10 +159,12 @@ function App() {
 
   return (
     <div style={{ minHeight:'100vh', background:'#14171A', padding:'50px 16px', display:'flex', flexDirection:'column', alignItems:'center' }}>
-      <div style={{ width:'100%', maxWidth:640 }} ref={boxRef}>
+      <div style={{ width:'100%', maxWidth:760 }} ref={boxRef}>
         <div style={{ textAlign:'center', marginBottom:36 }}>
-          <h1 style={{ fontSize:30, fontWeight:700, color:'#E8E6E1', margin:0 }}>Verifica Disponibilità</h1>
-          <p style={{ fontSize:15, color:'#8A9099', marginTop:8 }}>Scrivi cosa ti serve</p>
+          <img src="data:image/webp;base64,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" alt="Riccini" style={{ height:70, marginBottom:18 }} />
+          <h1 style={{ fontSize:40, fontWeight:700, color:'#E8E6E1', margin:0 }}>Verifica Disponibilità</h1>
+          <p style={{ fontSize:19, color:'#8A9099', marginTop:10 }}>Scrivi cosa ti serve</p>
+          <p style={{ fontSize:14, color:'#6B7280', marginTop:10 }}>Ultimo aggiornamento: {DATA.generato}</p>
         </div>
 
         <div style={{ position:'relative' }}>
@@ -171,26 +174,26 @@ function App() {
             onChange={e => { setTesto(e.target.value); setAperto(true); setSelezionato(null); }}
             onFocus={() => setAperto(true)}
             placeholder="Es: corrugato grigio 160, oppure kingcor SN8 160..."
-            style={{ width:'100%', fontSize:19, padding:'18px 22px', borderRadius:30, background:'#1E2227', border:'2px solid #3A4048', color:'#E8E6E1', outline:'none' }}
+            style={{ width:'100%', fontSize:24, padding:'22px 26px', borderRadius:34, background:'#1E2227', border:'2px solid #3A4048', color:'#E8E6E1', outline:'none' }}
           />
 
           {mostraSuggerimenti && (
             <div style={{ position:'absolute', top:'calc(100% + 8px)', left:0, right:0, background:'#1E2227', border:'1px solid #3A4048', borderRadius:16, overflow:'hidden', zIndex:10, boxShadow:'0 12px 28px rgba(0,0,0,0.4)' }}>
               {suggerimenti.length === 0 && (
-                <div style={{ padding:'16px 20px', color:'#8A9099', fontSize:15 }}>Nessun articolo simile trovato</div>
+                <div style={{ padding:'20px 24px', color:'#8A9099', fontSize:19 }}>Nessun articolo simile trovato</div>
               )}
               {suggerimenti.map(a => {
                 const stato = statoDisponibilita(a.pct);
                 return (
                   <button key={a.codice} onClick={() => selezionaArticolo(a)}
-                    style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%', padding:'14px 20px', background:'none', border:'none', borderBottom:'1px solid #2A3038', textAlign:'left', cursor:'pointer' }}
+                    style={{ display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%', padding:'18px 24px', background:'none', border:'none', borderBottom:'1px solid #2A3038', textAlign:'left', cursor:'pointer' }}
                     onMouseOver={e => e.currentTarget.style.background = '#242830'}
                     onMouseOut={e => e.currentTarget.style.background = 'none'}>
                     <div>
-                      <div style={{ fontSize:16, color:'#E8E6E1' }}>{a.nome_visualizzare || a.descrizione}</div>
-                      <div style={{ fontSize:13, color:'#8A9099' }}>{a.categoria} · ⌀ {a.diametro}</div>
+                      <div style={{ fontSize:20, color:'#E8E6E1' }}>{a.nome_visualizzare || a.descrizione}</div>
+                      <div style={{ fontSize:16, color:'#8A9099' }}>{a.categoria} · ⌀ {a.diametro}</div>
                     </div>
-                    <span style={{ width:10, height:10, borderRadius:'50%', background:stato.colore, flexShrink:0, marginLeft:12 }}></span>
+                    <span style={{ width:14, height:14, borderRadius:'50%', background:stato.colore, flexShrink:0, marginLeft:12 }}></span>
                   </button>
                 );
               })}
