@@ -18,6 +18,22 @@
 const { useState } = React;
 const DATA = {};
 
+const ALL_ARTICOLI = [];
+(DATA.categorie || []).forEach(cat => {
+  cat.diametri.forEach(d => {
+    d.articoli.forEach(a => {
+      ALL_ARTICOLI.push({ ...a, categoria: cat.categoria, diametro: d.diametro });
+    });
+  });
+});
+
+const ALL_ORDINI = [];
+ALL_ARTICOLI.forEach(a => {
+  (a.ordini || []).forEach(o => {
+    ALL_ORDINI.push({ ...o, articolo: a });
+  });
+});
+
 function colorForPct(pct) { if (pct < 0) return '#E5484D'; if (pct < 25) return '#F5A623'; return '#4DD0C4'; }
 function fmt(n) { return Math.round(n).toLocaleString('it-IT'); }
 function fmtData(d) { if (!d) return 'n.d.'; const p = d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
@@ -178,34 +194,177 @@ function ReportView({ onSelectArticolo }) {
   );
 }
 
+function SearchResults({ query, onSelectArticolo }) {
+  const q = query.trim().toLowerCase();
+
+  const matchArticoli = ALL_ARTICOLI.filter(a =>
+    (a.nome_visualizzare || '').toLowerCase().includes(q) ||
+    (a.descrizione || '').toLowerCase().includes(q) ||
+    (a.codice || '').toLowerCase().includes(q) ||
+    (a.categoria || '').toLowerCase().includes(q)
+  ).slice(0, 80);
+
+  const matchOrdini = ALL_ORDINI.filter(o => (o.cliente || '').toLowerCase().includes(q)).slice(0, 120);
+
+  const rowStyle = { display:'flex', alignItems:'center', justifyContent:'space-between', background:'#1E2227', border:'1px solid #2A3038', borderRadius:8, padding:'12px 16px', textAlign:'left', cursor:'pointer', width:'100%' };
+
+  return (
+    <div>
+      {matchArticoli.length === 0 && matchOrdini.length === 0 && (
+        <p style={{ color:'#8A9099', fontSize:16 }}>Nessun risultato per "{query}"</p>
+      )}
+
+      {matchArticoli.length > 0 && (
+        <div style={{ marginBottom: 28 }}>
+          <h3 style={{ fontSize:17, fontWeight:700, color:'#C5C9D0', marginBottom:10 }}>
+            Articoli <span style={{ fontSize:14, fontWeight:400, color:'#8A9099' }}>({matchArticoli.length})</span>
+          </h3>
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {matchArticoli.map(a => (
+              <button key={a.codice} onClick={() => onSelectArticolo({ articolo:a, categoria:a.categoria, diametro:a.diametro })} style={rowStyle}>
+                <div>
+                  <div style={{ fontSize:16, color:'#E8E6E1' }}>{a.nome_visualizzare || a.descrizione}</div>
+                  <div style={{ fontSize:13, fontFamily:'monospace', color:'#8A9099' }}>{a.categoria} · ⌀{a.diametro} · {a.codice}</div>
+                </div>
+                <span style={{ fontFamily:'monospace', fontSize:17, fontWeight:700, color: colorForPct(a.pct) }}>{fmt(a.disponibile)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {matchOrdini.length > 0 && (
+        <div>
+          <h3 style={{ fontSize:17, fontWeight:700, color:'#C5C9D0', marginBottom:10 }}>
+            Ordini clienti <span style={{ fontSize:14, fontWeight:400, color:'#8A9099' }}>({matchOrdini.length})</span>
+          </h3>
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {matchOrdini.map((o, i) => (
+              <button key={i} onClick={() => onSelectArticolo({ articolo:o.articolo, categoria:o.articolo.categoria, diametro:o.articolo.diametro })} style={rowStyle}>
+                <div>
+                  <div style={{ fontSize:16, color:'#E8E6E1' }}>{o.cliente}</div>
+                  <div style={{ fontSize:13, color:'#8A9099' }}>{o.articolo.nome_visualizzare || o.articolo.descrizione} · consegna {fmtData(o.data_evasione)}</div>
+                </div>
+                <span style={{ fontFamily:'monospace', fontSize:16, color:'#B8BEC6' }}>{fmt(o.quantita)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ControlloOrdine() {
+  const [numero, setNumero] = useState('');
+  const [anno, setAnno] = useState(String(new Date().getFullYear()));
+  const [risultato, setRisultato] = useState(null);
+  const [cercato, setCercato] = useState(false);
+
+  const cerca = () => {
+    const chiave = `${numero.trim()}-${anno.trim()}`;
+    const righe = (DATA.ordini_documento && DATA.ordini_documento[chiave]) || null;
+    setRisultato(righe);
+    setCercato(true);
+  };
+
+  return (
+    <div>
+      <div style={{ display:'flex', gap:12, marginBottom:22, flexWrap:'wrap', alignItems:'flex-end' }}>
+        <div>
+          <label style={{ fontSize:13, color:'#8A9099', display:'block', marginBottom:5 }}>Numero ordine</label>
+          <input type="text" value={numero} onChange={e => setNumero(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') cerca(); }}
+            placeholder="es. 4253" style={{ fontSize:17, padding:'11px 15px', borderRadius:9, background:'#1E2227', border:'1px solid #3A4048', color:'#E8E6E1', outline:'none', width:170 }} />
+        </div>
+        <div>
+          <label style={{ fontSize:13, color:'#8A9099', display:'block', marginBottom:5 }}>Anno</label>
+          <input type="text" value={anno} onChange={e => setAnno(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') cerca(); }}
+            placeholder="es. 2026" style={{ fontSize:17, padding:'11px 15px', borderRadius:9, background:'#1E2227', border:'1px solid #3A4048', color:'#E8E6E1', outline:'none', width:120 }} />
+        </div>
+        <button onClick={cerca} style={{ padding:'12px 24px', borderRadius:9, background:'#2A3038', border:'1px solid #3A4048', color:'#E8E6E1', fontSize:15, fontWeight:600, cursor:'pointer' }}>Cerca</button>
+      </div>
+
+      {cercato && !risultato && (
+        <p style={{ color:'#8A9099', fontSize:15 }}>Nessun ordine trovato con numero {numero} anno {anno}. Verifica numero e anno di emissione.</p>
+      )}
+
+      {risultato && (
+        <div>
+          <p style={{ fontSize:14, color:'#8A9099', marginBottom:6 }}>
+            Ordine {numero}/{anno} · Cliente: <span style={{ color:'#C5C9D0' }}>{risultato[0].cliente}</span> · {risultato.length} righe
+          </p>
+          <p style={{ fontSize:12, color:'#6B7280', marginBottom:16 }}>
+            ✅/❌ riflette il disponibile netto complessivo dell'articolo (giacenza meno tutto l'impegnato), non una prenotazione garantita solo per questo ordine.
+          </p>
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {risultato.map((r, i) => (
+              <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'#1E2227', border:'1px solid #2A3038', borderRadius:8, padding:'12px 16px' }}>
+                <div>
+                  <div style={{ fontSize:15, color:'#E8E6E1' }}>{r.descrizione}</div>
+                  <div style={{ fontSize:12, fontFamily:'monospace', color:'#8A9099' }}>{r.codice} · richiesti {fmt(r.quantita)} · disponibile netto {fmt(r.disponibile)}</div>
+                </div>
+                <span style={{ fontSize:26 }}>{r.ok ? '✅' : '❌'}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [view, setView] = useState('home');
   const [selectedCat, setSelectedCat] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [search, setSearch] = useState('');
+  const cercando = search.trim().length >= 2;
 
   return (
     <div style={{minHeight:'100vh',background:'#14171A',padding:16}}>
       <div style={{maxWidth:1100,margin:'0 auto'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:24}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18,flexWrap:'wrap',gap:12}}>
           <div>
             <a href="index.html" style={{fontSize:13,color:'#8A9099',textDecoration:'none'}}>← Giacenze Magazzino</a>
             <h1 style={{fontSize:20,fontWeight:700,color:'#E8E6E1',margin:'3px 0 0'}}>⛽ Monitor Produzione</h1>
             <p style={{fontSize:13,color:'#8A9099',margin:0}}>Materiale standard · aggiornato {DATA.generato}</p>
           </div>
-          <div style={{display:'flex',gap:4,background:'#1E2227',borderRadius:8,padding:4}}>
-            <button onClick={()=>{setView('home'); setSelectedCat(null);}}
-              style={{padding:'8px 16px',borderRadius:6,fontSize:14,fontWeight:600,background: view!=='report'?'#2A3038':'transparent', color: view!=='report'?'#E8E6E1':'#8A9099', border:'none',cursor:'pointer'}}>Categorie</button>
-            <button onClick={()=>setView('report')}
+          <div style={{display:'flex',gap:4,background:'#1E2227',borderRadius:8,padding:4,flexWrap:'wrap'}}>
+            <button onClick={()=>{setView('home'); setSelectedCat(null); setSearch('');}}
+              style={{padding:'8px 16px',borderRadius:6,fontSize:14,fontWeight:600,background: view==='home'?'#2A3038':'transparent', color: view==='home'?'#E8E6E1':'#8A9099', border:'none',cursor:'pointer'}}>Categorie</button>
+            <button onClick={()=>{setView('report'); setSearch('');}}
               style={{padding:'8px 16px',borderRadius:6,fontSize:14,fontWeight:600,display:'flex',alignItems:'center',gap:6,background: view==='report'?'#2A3038':'transparent', color: view==='report'?'#E8E6E1':'#8A9099', border:'none',cursor:'pointer'}}>
               Report criticita'
               <span style={{background:'#E5484D',color:'#1A1D21',fontSize:12,padding:'2px 8px',borderRadius:8,fontWeight:700}}>{DATA.report_critici.length}</span>
             </button>
+            <button onClick={()=>{setView('ordine'); setSearch('');}}
+              style={{padding:'8px 16px',borderRadius:6,fontSize:14,fontWeight:600,background: view==='ordine'?'#2A3038':'transparent', color: view==='ordine'?'#E8E6E1':'#8A9099', border:'none',cursor:'pointer'}}>Controllo Ordine</button>
           </div>
         </div>
 
-        {view==='report' && <ReportView onSelectArticolo={setDetail} />}
-        {view!=='report' && selectedCat===null && <CategoriaHome onSelect={(c)=>{setSelectedCat(c); setView('categoria');}} />}
-        {view!=='report' && selectedCat!==null && <CategoriaDetail categoria={selectedCat} onBack={()=>setSelectedCat(null)} onSelectArticolo={setDetail} />}
+        <div style={{marginBottom:22, position:'relative'}}>
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="🔍 Cerca articolo, diametro o cliente..."
+            style={{width:'100%', fontSize:18, padding:'14px 16px', borderRadius:10, background:'#1E2227', border:'1px solid #3A4048', color:'#E8E6E1', outline:'none'}}
+          />
+          {search && (
+            <button onClick={()=>setSearch('')} style={{position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', color:'#8A9099', fontSize:20, cursor:'pointer'}}>✕</button>
+          )}
+        </div>
+
+        {cercando ? (
+          <SearchResults query={search} onSelectArticolo={setDetail} />
+        ) : (
+          <React.Fragment>
+            {view==='report' && <ReportView onSelectArticolo={setDetail} />}
+            {view==='ordine' && <ControlloOrdine />}
+            {view==='home' && selectedCat===null && <CategoriaHome onSelect={(c)=>{setSelectedCat(c); setView('categoria');}} />}
+            {view==='home' && selectedCat!==null && <CategoriaDetail categoria={selectedCat} onBack={()=>setSelectedCat(null)} onSelectArticolo={setDetail} />}
+          </React.Fragment>
+        )}
       </div>
       <DetailModal articolo={detail && detail.articolo} categoria={detail && detail.categoria} diametro={detail && detail.diametro} onClose={()=>setDetail(null)} />
     </div>

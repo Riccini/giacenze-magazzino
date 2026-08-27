@@ -66,6 +66,7 @@ print(f"Articoli in saldi: {len(saldi)}")
 # ── PORTAFOGLIO ORDINI (ordini aperti per articolo, con data di evasione) ──
 ord_file = next(Path(".").glob("Stampa_portafoglio*.xlsx"), None)
 ordini_per_articolo = defaultdict(list)
+ordini_per_documento = defaultdict(list)
 if ord_file:
     print(f"Ordini: {ord_file}")
     wb_ord = load_workbook(ord_file, read_only=True, data_only=True)
@@ -75,6 +76,10 @@ if ord_file:
     idx_cliente = headers_ord.index("ANDESCRI")
     idx_qta = headers_ord.index("MVQTAMOV")
     idx_evasione = headers_ord.index("MVDATEVA")
+    idx_numdoc = headers_ord.index("MVNUMDOC")
+    idx_datdoc = headers_ord.index("MVDATDOC")
+    idx_desc = headers_ord.index("ARDESART")
+    idx_riga = headers_ord.index("CPROWORD") if "CPROWORD" in headers_ord else None
 
     for row in ws_ord.iter_rows(min_row=2, values_only=True):
         codice = str(row[idx_art] or "").strip()
@@ -88,6 +93,28 @@ if ord_file:
             "quantita": row[idx_qta] or 0,
             "data_evasione": data_str
         })
+
+        # ── Indice per Controllo Ordine (numero + anno) ──
+        numdoc = row[idx_numdoc]
+        datdoc = row[idx_datdoc]
+        if numdoc is not None and hasattr(datdoc, "year"):
+            chiave = f"{numdoc}-{datdoc.year}"
+            s = saldi.get(codice, {"giacenza": 0, "impegnato": 0})
+            disp = s["giacenza"] - s["impegnato"]
+            ordini_per_documento[chiave].append({
+                "riga": row[idx_riga] if idx_riga is not None else 0,
+                "codice": codice,
+                "descrizione": row[idx_desc],
+                "cliente": cliente,
+                "quantita": row[idx_qta] or 0,
+                "giacenza": s["giacenza"],
+                "impegnato": s["impegnato"],
+                "disponibile": disp,
+                "ok": disp >= 0
+            })
+
+    for chiave in ordini_per_documento:
+        ordini_per_documento[chiave].sort(key=lambda r: (r["riga"] or 0))
 else:
     print("ATTENZIONE: file Stampa_portafoglio*.xlsx non trovato, procedo senza dettaglio ordini")
 
@@ -205,7 +232,7 @@ for categoria, diametri_dict in categorie_dict.items():
 report_critici.sort(key=lambda a: a["disponibile"])
 
 now = datetime.now().strftime("%d/%m/%Y %H:%M")
-output = {"generato": now, "categorie": categorie_output, "report_critici": report_critici}
+output = {"generato": now, "categorie": categorie_output, "report_critici": report_critici, "ordini_documento": dict(ordini_per_documento)}
 
 # ── INSERISCO NEL TEMPLATE (Monitor Produzione) ──
 with open("monitor_produzione_template.html", encoding="utf-8") as f:
