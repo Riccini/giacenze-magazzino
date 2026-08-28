@@ -6,6 +6,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/eruda/3.0.1/eruda.min.js"></script>
+<script>eruda.init();</script>
 <style>
   body { margin: 0; background: #14171A; font-family: -apple-system, "Segoe UI", sans-serif; }
   * { box-sizing: border-box; }
@@ -319,6 +321,7 @@ function App() {
   const [detail, setDetail] = useState(null);
   const [search, setSearch] = useState('');
   const cercando = search.trim().length >= 2;
+  console.log('DEBUG render:', JSON.stringify({ view, selectedCat, cercando, search }));
 
   return (
     <div style={{minHeight:'100vh',background:'#14171A',padding:16}}>
@@ -361,7 +364,7 @@ function App() {
           <React.Fragment>
             {view==='report' && <ReportView onSelectArticolo={setDetail} />}
             {view==='ordine' && <ControlloOrdine />}
-            {view==='home' && selectedCat===null && <CategoriaHome onSelect={(c)=>{setSelectedCat(c); setView('categoria');}} />}
+            {view==='home' && selectedCat===null && <CategoriaHome onSelect={(c)=>{setSelectedCat(c);}} />}
             {view==='home' && selectedCat!==null && <CategoriaDetail categoria={selectedCat} onBack={()=>setSelectedCat(null)} onSelectArticolo={setDetail} />}
           </React.Fragment>
         )}
