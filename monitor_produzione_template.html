@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <title>Monitor Produzione</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/eruda/3.0.1/eruda.min.js"></script>
-<script>eruda.init();</script>
 <style>
   body { margin: 0; background: #14171A; font-family: -apple-system, "Segoe UI", sans-serif; }
   * { box-sizing: border-box; }
@@ -321,7 +322,6 @@ function App() {
   const [detail, setDetail] = useState(null);
   const [search, setSearch] = useState('');
   const cercando = search.trim().length >= 2;
-  console.log('DEBUG render:', JSON.stringify({ view, selectedCat, cercando, search }));
 
   return (
     <div style={{minHeight:'100vh',background:'#14171A',padding:16}}>
