@@ -304,7 +304,7 @@ function ControlloOrdine() {
               <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'#1E2227', border:'1px solid #2A3038', borderRadius:8, padding:'12px 16px' }}>
                 <div>
                   <div style={{ fontSize:15, color:'#E8E6E1' }}>{r.descrizione}</div>
-                  <div style={{ fontSize:12, fontFamily:'monospace', color:'#8A9099' }}>{r.codice} · richiesti {fmt(r.quantita)} · disponibile netto {fmt(r.disponibile)}</div>
+                  <div style={{ fontSize:12, fontFamily:'monospace', color:'#8A9099' }}>{r.codice} · richiesti {fmt(r.quantita)} · a terra {fmt(r.giacenza)} · disponibile netto {fmt(r.disponibile)}</div>
                 </div>
                 <span style={{ fontSize:26 }}>{r.ok ? '✅' : '❌'}</span>
               </div>
