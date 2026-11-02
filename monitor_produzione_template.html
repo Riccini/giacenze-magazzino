@@ -2,6 +2,13 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
+<script>
+(function() {
+  if (location.search.indexOf('_f=') === -1) {
+    location.replace(location.pathname + '?_f=' + Date.now());
+  }
+})();
+</script>
 <title>Monitor Produzione</title>
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
@@ -9,15 +16,49 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  body { margin: 0; background: #14171A; font-family: -apple-system, "Segoe UI", sans-serif; }
-  * { box-sizing: border-box; }
-  button { font-family: inherit; }
+:root{
+  --bg:#FFFFFF; --surface:#FFFFFF; --sunk:#F4F6F6; --ink:#1B2226; --ink2:#36434A; --muted:#5D6A70;
+  --line:#CBD2D4; --line2:#DDE2E3; --sep:#A9B2B6;
+  --accent:#1C5A96; --accent-ink:#FFFFFF;
+  --warn:#A8471B; --warnbg:#FBEADF; --ok:#2C7A4B; --okbg:#E1F1E7;
+  --red:#B4321E; --redbg:#F9E3DF; --amber:#C28A12; --on-red:#FFFFFF;
+  --fade0:rgba(255,255,255,0);
+  --font:"Poppins","Century Gothic","Segoe UI",system-ui,-apple-system,sans-serif;
+  --cond:"Barlow Semi Condensed","Arial Narrow","Segoe UI",system-ui,-apple-system,sans-serif;
+  --radius:10px; --radius-sm:8px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#13181A; --surface:#1C2326; --sunk:#171D20; --ink:#E4E9EA; --ink2:#C5CDD0; --muted:#97A3A8;
+    --line:#343E42; --line2:#2A3236; --sep:#56646A;
+    --accent:#6EA7DD; --accent-ink:#0E1A26;
+    --warn:#E59468; --warnbg:#3A2418; --ok:#7CC79A; --okbg:#1B3326;
+    --red:#EC7B66; --redbg:#3B1E1A; --amber:#E2B44C; --on-red:#1A1D21;
+    --fade0:rgba(19,24,26,0);
+    color-scheme:dark;
+  }
+}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+button,input{font-family:inherit}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
+
+// --- tema: legge i colori dalle variabili CSS (stesso stile del resto del sito) ---
+const _cs = getComputedStyle(document.documentElement);
+const _v = n => _cs.getPropertyValue(n).trim();
+const C = { bg:_v('--bg'), surface:_v('--surface'), sunk:_v('--sunk'), ink:_v('--ink'), ink2:_v('--ink2'), muted:_v('--muted'),
+  line:_v('--line'), line2:_v('--line2'), sep:_v('--sep'), accent:_v('--accent'), onAccent:_v('--accent-ink'),
+  red:_v('--red'), amber:_v('--amber'), green:_v('--ok'), onRed:_v('--on-red') };
+const FONT_NUM = _v('--cond') || 'sans-serif';
 const { useState } = React;
 const DATA = {};
 
@@ -37,7 +78,7 @@ ALL_ARTICOLI.forEach(a => {
   });
 });
 
-function colorForPct(pct) { if (pct < 0) return '#E5484D'; if (pct < 25) return '#F5A623'; return '#4DD0C4'; }
+function colorForPct(pct) { if (pct < 0) return C.red; if (pct < 25) return C.amber; return C.green; }
 function fmt(n) { return Math.round(n).toLocaleString('it-IT'); }
 function fmtData(d) { if (!d) return 'n.d.'; const p = d.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
 
@@ -53,22 +94,22 @@ function ArticoloTank({ articolo, onClick }) {
 
   return (
     <button onClick={onClick} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8,padding:10,borderRadius:10,background:'none',border:'none',cursor:'pointer',width:190}}
-      onMouseOver={e=>e.currentTarget.style.background='#242830'} onMouseOut={e=>e.currentTarget.style.background='none'}>
-      <div style={{fontSize:26,color:'#C5C9D0',lineHeight:1.25,textAlign:'center',minHeight:64,overflow:'hidden'}}>
+      onMouseOver={e=>e.currentTarget.style.background=C.sunk} onMouseOut={e=>e.currentTarget.style.background='none'}>
+      <div style={{fontSize:26,color:C.ink2,lineHeight:1.25,textAlign:'center',minHeight:64,overflow:'hidden'}}>
         {articolo.nome_visualizzare || articolo.descrizione}
       </div>
       <div style={{position:'relative', width:w, height:h}}>
         <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
-          <rect x="1" y="1" width={w-2} height={h-2} rx="9" fill="#1A1D21" stroke="#3A4048" strokeWidth="2" />
+          <rect x="1" y="1" width={w-2} height={h-2} rx="9" fill={C.surface} stroke={C.sep} strokeWidth="2" />
           <clipPath id={clipId}><rect x="5" y="5" width={w-10} height={h-10} rx="5" /></clipPath>
-          <rect x="5" y={5+(h-10-bgHeight)} width={w-10} height={bgHeight} fill="#3A4048" clipPath={`url(#${clipId})`} />
+          <rect x="5" y={5+(h-10-bgHeight)} width={w-10} height={bgHeight} fill={C.line} clipPath={`url(#${clipId})`} />
           <rect x="5" y={5+(h-10-overlayHeight)} width={w-10} height={overlayHeight} fill={color} opacity="0.9" clipPath={`url(#${clipId})`} />
         </svg>
-        {negativo && (<div style={{position:'absolute',bottom:-10,left:'50%',transform:'translateX(-50%)',background:'#E5484D',borderRadius:5,padding:'2px 10px',fontSize:18,color:'#1A1D21',fontWeight:700,whiteSpace:'nowrap'}}>SOTTO 0</div>)}
+        {negativo && (<div style={{position:'absolute',bottom:-10,left:'50%',transform:'translateX(-50%)',background:C.red,borderRadius:5,padding:'2px 10px',fontSize:18,color:C.onRed,fontWeight:700,whiteSpace:'nowrap'}}>SOTTO 0</div>)}
       </div>
       <div style={{display:'flex',flexDirection:'column',alignItems:'center',lineHeight:1.3,marginTop:10}}>
-        <div style={{fontFamily:'monospace',fontSize:28,color:'#C5C9D0'}}>{fmt(articolo.giacenza)}</div>
-        <div style={{fontFamily:'monospace',fontSize:32,fontWeight:700,color}}>{fmt(articolo.disponibile)}</div>
+        <div style={{fontFamily:FONT_NUM,fontSize:28,color:C.ink2}}>{fmt(articolo.giacenza)}</div>
+        <div style={{fontFamily:FONT_NUM,fontSize:32,fontWeight:700,color}}>{fmt(articolo.disponibile)}</div>
       </div>
     </button>
   );
@@ -79,48 +120,48 @@ function DetailModal({ articolo, categoria, diametro, onClose }) {
   const color = colorForPct(articolo.pct);
   return (
     <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50,padding:16}} onClick={onClose}>
-      <div style={{background:'#1E2227',borderRadius:8,border:'1px solid #3A4048',maxWidth:420,width:'100%',padding:16,maxHeight:'85vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+      <div style={{background:C.surface,borderRadius:8,border:'1px solid '+C.line,maxWidth:420,width:'100%',padding:16,maxHeight:'85vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:12}}>
           <div>
-            <div style={{fontSize:16,fontWeight:700,color:'#E8E6E1'}}>{articolo.nome_visualizzare || articolo.descrizione}</div>
-            <div style={{fontSize:13,fontFamily:'monospace',color:'#8A9099'}}>{articolo.codice} · {categoria} · ⌀{diametro}</div>
+            <div style={{fontSize:16,fontWeight:700,color:C.ink}}>{articolo.nome_visualizzare || articolo.descrizione}</div>
+            <div style={{fontSize:13,fontFamily:FONT_NUM,color:C.muted}}>{articolo.codice} · {categoria} · ⌀{diametro}</div>
           </div>
-          <button onClick={onClose} style={{background:'none',border:'none',color:'#6B7280',cursor:'pointer',fontSize:16}}>✕</button>
+          <button onClick={onClose} style={{background:'none',border:'none',color:C.muted,cursor:'pointer',fontSize:16}}>✕</button>
         </div>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:12}}>
-          <div style={{background:'#181B1F',borderRadius:4,padding:8,textAlign:'center'}}>
-            <div style={{fontFamily:'monospace',fontSize:16,color:'#C5C9D0'}}>{fmt(articolo.giacenza)}</div>
-            <div style={{fontSize:12,color:'#8A9099'}}>Giacenza (a terra)</div>
+          <div style={{background:C.sunk,borderRadius:4,padding:8,textAlign:'center'}}>
+            <div style={{fontFamily:FONT_NUM,fontSize:16,color:C.ink2}}>{fmt(articolo.giacenza)}</div>
+            <div style={{fontSize:12,color:C.muted}}>Giacenza (a terra)</div>
           </div>
-          <div style={{background:'#181B1F',borderRadius:4,padding:8,textAlign:'center'}}>
-            <div style={{fontFamily:'monospace',fontSize:16,color:'#C5C9D0'}}>{fmt(articolo.impegnato)}</div>
-            <div style={{fontSize:12,color:'#8A9099'}}>Impegnato</div>
+          <div style={{background:C.sunk,borderRadius:4,padding:8,textAlign:'center'}}>
+            <div style={{fontFamily:FONT_NUM,fontSize:16,color:C.ink2}}>{fmt(articolo.impegnato)}</div>
+            <div style={{fontSize:12,color:C.muted}}>Impegnato</div>
           </div>
-          <div style={{background:'#181B1F',borderRadius:4,padding:8,textAlign:'center'}}>
-            <div style={{fontFamily:'monospace',fontSize:16,fontWeight:700,color}}>{fmt(articolo.disponibile)}</div>
-            <div style={{fontSize:12,color:'#8A9099'}}>Vendibile netto</div>
+          <div style={{background:C.sunk,borderRadius:4,padding:8,textAlign:'center'}}>
+            <div style={{fontFamily:FONT_NUM,fontSize:16,fontWeight:700,color}}>{fmt(articolo.disponibile)}</div>
+            <div style={{fontSize:12,color:C.muted}}>Vendibile netto</div>
           </div>
         </div>
         {articolo.ordini && articolo.ordini.length>0 ? (
           <div>
-            <div style={{fontSize:12,color:'#8A9099',textTransform:'uppercase',marginBottom:6}}>Ordini aperti · dal piu' recente al piu' vecchio</div>
+            <div style={{fontSize:12,color:C.muted,textTransform:'uppercase',marginBottom:6}}>Ordini aperti · dal piu' recente al piu' vecchio</div>
             <div style={{display:'flex',flexDirection:'column',gap:4}}>
               {[...articolo.ordini].sort((a,b)=>{
                 if(!a.data_evasione) return 1;
                 if(!b.data_evasione) return -1;
                 return b.data_evasione.localeCompare(a.data_evasione);
               }).map((o,i)=>(
-                <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:14,padding:'8px 10px',background:'#181B1F',borderRadius:4}}>
+                <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:14,padding:'8px 10px',background:C.sunk,borderRadius:4}}>
                   <div>
-                    <div style={{color:'#C5C9D0',fontSize:14}}>{o.cliente}</div>
-                    <div style={{fontSize:12,color:'#8A9099',fontFamily:'monospace'}}>consegna: {fmtData(o.data_evasione)}</div>
+                    <div style={{color:C.ink2,fontSize:14}}>{o.cliente}</div>
+                    <div style={{fontSize:12,color:C.muted,fontFamily:FONT_NUM}}>consegna: {fmtData(o.data_evasione)}</div>
                   </div>
-                  <span style={{fontFamily:'monospace',color:'#B8BEC6',fontSize:14}}>{fmt(o.quantita)}</span>
+                  <span style={{fontFamily:FONT_NUM,color:C.ink2,fontSize:14}}>{fmt(o.quantita)}</span>
                 </div>
               ))}
             </div>
           </div>
-        ) : (<div style={{fontSize:12,color:'#6B7280'}}>Nessun ordine aperto per questo articolo</div>)}
+        ) : (<div style={{fontSize:12,color:C.muted}}>Nessun ordine aperto per questo articolo</div>)}
       </div>
     </div>
   );
@@ -131,11 +172,11 @@ function CategoriaHome({ onSelect }) {
     <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))', gap:18}}>
       {DATA.categorie.map(cat=>(
         <button key={cat.categoria} onClick={()=>onSelect(cat.categoria)}
-          style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:14,background:'#1E2227',border:'1px solid #2A3038',borderRadius:16,padding:20,textAlign:'center',cursor:'pointer',width:'100%',aspectRatio:'1'}}
-          onMouseOver={e=>e.currentTarget.style.background='#242830'} onMouseOut={e=>e.currentTarget.style.background='#1E2227'}>
-          {cat.n_critici>0 && (<span style={{background:'rgba(229,72,77,0.15)',color:'#E5484D',fontSize:16,fontWeight:600,padding:'5px 14px',borderRadius:16}}>⚠ {cat.n_critici}</span>)}
-          <div style={{fontSize:22,fontWeight:700,color:'#E8E6E1',lineHeight:1.3}}>{cat.categoria}</div>
-          <div style={{fontSize:16,color:'#9AA0A8'}}>{cat.n_articoli} articoli</div>
+          style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:14,background:C.sunk,border:'1px solid '+C.line,borderRadius:16,padding:20,textAlign:'center',cursor:'pointer',width:'100%',aspectRatio:'1'}}
+          onMouseOver={e=>e.currentTarget.style.background=C.line2} onMouseOut={e=>e.currentTarget.style.background=C.sunk}>
+          {cat.n_critici>0 && (<span style={{background:C.red+'26',color:C.red,fontSize:16,fontWeight:600,padding:'5px 14px',borderRadius:16}}>⚠ {cat.n_critici}</span>)}
+          <div style={{fontSize:22,fontWeight:700,color:C.ink,lineHeight:1.3}}>{cat.categoria}</div>
+          <div style={{fontSize:16,color:C.muted}}>{cat.n_articoli} articoli</div>
         </button>
       ))}
     </div>
@@ -146,17 +187,17 @@ function CategoriaDetail({ categoria, onBack, onSelectArticolo }) {
   const cat = DATA.categorie.find(c=>c.categoria===categoria);
   return (
     <div>
-      <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:8,fontSize:20,fontWeight:600,color:'#E8E6E1',background:'#1E2227',border:'1px solid #2A3038',borderRadius:10,padding:'12px 20px',cursor:'pointer',marginBottom:20}}>← Tutte le categorie</button>
-      <h2 style={{fontSize:22,fontWeight:700,color:'#E8E6E1',marginBottom:6}}>{cat.categoria}</h2>
-      <p style={{fontSize:14,color:'#8A9099',marginBottom:20}}>
-        {cat.n_articoli} articoli · Giacenza tot. <span style={{fontFamily:'monospace'}}>{fmt(cat.giacenza)}</span> ·
-        Vendibile netto tot. <span style={{fontFamily:'monospace',color:colorForPct(cat.pct)}}>{fmt(cat.disponibile)}</span>
+      <button onClick={onBack} style={{display:'flex',alignItems:'center',gap:8,fontSize:20,fontWeight:600,color:C.ink,background:C.sunk,border:'1px solid '+C.line,borderRadius:10,padding:'12px 20px',cursor:'pointer',marginBottom:20}}>← Tutte le categorie</button>
+      <h2 style={{fontSize:22,fontWeight:700,color:C.ink,marginBottom:6}}>{cat.categoria}</h2>
+      <p style={{fontSize:14,color:C.muted,marginBottom:20}}>
+        {cat.n_articoli} articoli · Giacenza tot. <span style={{fontFamily:FONT_NUM}}>{fmt(cat.giacenza)}</span> ·
+        Vendibile netto tot. <span style={{fontFamily:FONT_NUM,color:colorForPct(cat.pct)}}>{fmt(cat.disponibile)}</span>
       </p>
       <div style={{display:'flex',flexDirection:'column',gap:22}}>
         {cat.diametri.map(d=>(
           <div key={d.diametro}>
-            <div style={{fontSize:15,color:'#B8BEC6',marginBottom:8,fontFamily:'monospace',fontWeight:600,display:'flex',alignItems:'center',gap:6}}>
-              ⌀ {d.diametro} {d.allerta && <span style={{color:'#E5484D'}}>⚠</span>}
+            <div style={{fontSize:15,color:C.ink2,marginBottom:8,fontFamily:FONT_NUM,fontWeight:600,display:'flex',alignItems:'center',gap:6}}>
+              ⌀ {d.diametro} {d.allerta && <span style={{color:C.red}}>⚠</span>}
             </div>
             <div style={{display:'flex',flexWrap:'wrap',gap:4}}>
               {d.articoli.map(a=>(<ArticoloTank key={a.codice} articolo={a} onClick={()=>onSelectArticolo({articolo:a, categoria:cat.categoria, diametro:d.diametro})} />))}
@@ -173,20 +214,20 @@ function ReportView({ onSelectArticolo }) {
   DATA.report_critici.forEach(a=>{ if(!grouped[a.categoria]) grouped[a.categoria]=[]; grouped[a.categoria].push(a); });
   return (
     <div>
-      <p style={{fontSize:14,color:'#8A9099',marginBottom:18}}>{DATA.report_critici.length} articoli con vendibile netto sotto zero · ordinati dal piu' critico</p>
+      <p style={{fontSize:14,color:C.muted,marginBottom:18}}>{DATA.report_critici.length} articoli con vendibile netto sotto zero · ordinati dal piu' critico</p>
       <div style={{display:'flex',flexDirection:'column',gap:16}}>
         {Object.entries(grouped).map(([categoria,articoli])=>(
           <div key={categoria}>
-            <h3 style={{fontSize:16,fontWeight:700,color:'#C5C9D0',marginBottom:10}}>{categoria} <span style={{fontSize:13,fontWeight:400,color:'#8A9099'}}>({articoli.length})</span></h3>
+            <h3 style={{fontSize:16,fontWeight:700,color:C.ink2,marginBottom:10}}>{categoria} <span style={{fontSize:13,fontWeight:400,color:C.muted}}>({articoli.length})</span></h3>
             <div style={{display:'flex',flexDirection:'column',gap:4}}>
               {articoli.map(a=>(
                 <button key={a.codice} onClick={()=>onSelectArticolo({articolo:a, categoria:a.categoria, diametro:a.diametro})}
-                  style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'#1E2227',borderRadius:6,padding:'10px 14px',border:'1px solid #2A3038',textAlign:'left',cursor:'pointer'}}>
+                  style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:C.sunk,borderRadius:6,padding:'10px 14px',border:'1px solid '+C.line,textAlign:'left',cursor:'pointer'}}>
                   <div>
-                    <span style={{fontSize:15,color:'#E8E6E1'}}>{a.nome_visualizzare || a.descrizione}</span>
-                    <span style={{fontSize:12,fontFamily:'monospace',color:'#8A9099',marginLeft:8}}>{a.codice} · ⌀{a.diametro}</span>
+                    <span style={{fontSize:15,color:C.ink}}>{a.nome_visualizzare || a.descrizione}</span>
+                    <span style={{fontSize:12,fontFamily:FONT_NUM,color:C.muted,marginLeft:8}}>{a.codice} · ⌀{a.diametro}</span>
                   </div>
-                  <span style={{fontFamily:'monospace',fontSize:15,fontWeight:700,color:colorForPct(a.pct)}}>{fmt(a.disponibile)}</span>
+                  <span style={{fontFamily:FONT_NUM,fontSize:15,fontWeight:700,color:colorForPct(a.pct)}}>{fmt(a.disponibile)}</span>
                 </button>
               ))}
             </div>
@@ -209,27 +250,27 @@ function SearchResults({ query, onSelectArticolo }) {
 
   const matchOrdini = ALL_ORDINI.filter(o => (o.cliente || '').toLowerCase().includes(q)).slice(0, 120);
 
-  const rowStyle = { display:'flex', alignItems:'center', justifyContent:'space-between', background:'#1E2227', border:'1px solid #2A3038', borderRadius:8, padding:'12px 16px', textAlign:'left', cursor:'pointer', width:'100%' };
+  const rowStyle = { display:'flex', alignItems:'center', justifyContent:'space-between', background:C.sunk, border:'1px solid '+C.line, borderRadius:8, padding:'12px 16px', textAlign:'left', cursor:'pointer', width:'100%' };
 
   return (
     <div>
       {matchArticoli.length === 0 && matchOrdini.length === 0 && (
-        <p style={{ color:'#8A9099', fontSize:16 }}>Nessun risultato per "{query}"</p>
+        <p style={{ color:C.muted, fontSize:16 }}>Nessun risultato per "{query}"</p>
       )}
 
       {matchArticoli.length > 0 && (
         <div style={{ marginBottom: 28 }}>
-          <h3 style={{ fontSize:17, fontWeight:700, color:'#C5C9D0', marginBottom:10 }}>
-            Articoli <span style={{ fontSize:14, fontWeight:400, color:'#8A9099' }}>({matchArticoli.length})</span>
+          <h3 style={{ fontSize:17, fontWeight:700, color:C.ink2, marginBottom:10 }}>
+            Articoli <span style={{ fontSize:14, fontWeight:400, color:C.muted }}>({matchArticoli.length})</span>
           </h3>
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             {matchArticoli.map(a => (
               <button key={a.codice} onClick={() => onSelectArticolo({ articolo:a, categoria:a.categoria, diametro:a.diametro })} style={rowStyle}>
                 <div>
-                  <div style={{ fontSize:16, color:'#E8E6E1' }}>{a.nome_visualizzare || a.descrizione}</div>
-                  <div style={{ fontSize:13, fontFamily:'monospace', color:'#8A9099' }}>{a.categoria} · ⌀{a.diametro} · {a.codice}</div>
+                  <div style={{ fontSize:16, color:C.ink }}>{a.nome_visualizzare || a.descrizione}</div>
+                  <div style={{ fontSize:13, fontFamily:FONT_NUM, color:C.muted }}>{a.categoria} · ⌀{a.diametro} · {a.codice}</div>
                 </div>
-                <span style={{ fontFamily:'monospace', fontSize:17, fontWeight:700, color: colorForPct(a.pct) }}>{fmt(a.disponibile)}</span>
+                <span style={{ fontFamily:FONT_NUM, fontSize:17, fontWeight:700, color: colorForPct(a.pct) }}>{fmt(a.disponibile)}</span>
               </button>
             ))}
           </div>
@@ -238,17 +279,17 @@ function SearchResults({ query, onSelectArticolo }) {
 
       {matchOrdini.length > 0 && (
         <div>
-          <h3 style={{ fontSize:17, fontWeight:700, color:'#C5C9D0', marginBottom:10 }}>
-            Ordini clienti <span style={{ fontSize:14, fontWeight:400, color:'#8A9099' }}>({matchOrdini.length})</span>
+          <h3 style={{ fontSize:17, fontWeight:700, color:C.ink2, marginBottom:10 }}>
+            Ordini clienti <span style={{ fontSize:14, fontWeight:400, color:C.muted }}>({matchOrdini.length})</span>
           </h3>
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             {matchOrdini.map((o, i) => (
               <button key={i} onClick={() => onSelectArticolo({ articolo:o.articolo, categoria:o.articolo.categoria, diametro:o.articolo.diametro })} style={rowStyle}>
                 <div>
-                  <div style={{ fontSize:16, color:'#E8E6E1' }}>{o.cliente}</div>
-                  <div style={{ fontSize:13, color:'#8A9099' }}>{o.articolo.nome_visualizzare || o.articolo.descrizione} · consegna {fmtData(o.data_evasione)}</div>
+                  <div style={{ fontSize:16, color:C.ink }}>{o.cliente}</div>
+                  <div style={{ fontSize:13, color:C.muted }}>{o.articolo.nome_visualizzare || o.articolo.descrizione} · consegna {fmtData(o.data_evasione)}</div>
                 </div>
-                <span style={{ fontFamily:'monospace', fontSize:16, color:'#B8BEC6' }}>{fmt(o.quantita)}</span>
+                <span style={{ fontFamily:FONT_NUM, fontSize:16, color:C.ink2 }}>{fmt(o.quantita)}</span>
               </button>
             ))}
           </div>
@@ -275,36 +316,36 @@ function ControlloOrdine() {
     <div>
       <div style={{ display:'flex', gap:12, marginBottom:22, flexWrap:'wrap', alignItems:'flex-end' }}>
         <div>
-          <label style={{ fontSize:13, color:'#8A9099', display:'block', marginBottom:5 }}>Numero ordine</label>
+          <label style={{ fontSize:13, color:C.muted, display:'block', marginBottom:5 }}>Numero ordine</label>
           <input type="text" value={numero} onChange={e => setNumero(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') cerca(); }}
-            placeholder="es. 4253" style={{ fontSize:17, padding:'11px 15px', borderRadius:9, background:'#1E2227', border:'1px solid #3A4048', color:'#E8E6E1', outline:'none', width:170 }} />
+            placeholder="es. 4253" style={{ fontSize:17, padding:'11px 15px', borderRadius:9, background:C.surface, border:'1px solid '+C.sep, color:C.ink, outline:'none', width:170 }} />
         </div>
         <div>
-          <label style={{ fontSize:13, color:'#8A9099', display:'block', marginBottom:5 }}>Anno</label>
+          <label style={{ fontSize:13, color:C.muted, display:'block', marginBottom:5 }}>Anno</label>
           <input type="text" value={anno} onChange={e => setAnno(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') cerca(); }}
-            placeholder="es. 2026" style={{ fontSize:17, padding:'11px 15px', borderRadius:9, background:'#1E2227', border:'1px solid #3A4048', color:'#E8E6E1', outline:'none', width:120 }} />
+            placeholder="es. 2026" style={{ fontSize:17, padding:'11px 15px', borderRadius:9, background:C.surface, border:'1px solid '+C.sep, color:C.ink, outline:'none', width:120 }} />
         </div>
-        <button onClick={cerca} style={{ padding:'12px 24px', borderRadius:9, background:'#2A3038', border:'1px solid #3A4048', color:'#E8E6E1', fontSize:15, fontWeight:600, cursor:'pointer' }}>Cerca</button>
+        <button onClick={cerca} style={{ padding:'12px 24px', borderRadius:9, background:C.accent, border:'none', color:C.onAccent, fontSize:15, fontWeight:600, cursor:'pointer' }}>Cerca</button>
       </div>
 
       {cercato && !risultato && (
-        <p style={{ color:'#8A9099', fontSize:15 }}>Nessun ordine trovato con numero {numero} anno {anno}. Verifica numero e anno di emissione.</p>
+        <p style={{ color:C.muted, fontSize:15 }}>Nessun ordine trovato con numero {numero} anno {anno}. Verifica numero e anno di emissione.</p>
       )}
 
       {risultato && (
         <div>
-          <p style={{ fontSize:14, color:'#8A9099', marginBottom:6 }}>
-            Ordine {numero}/{anno} · Cliente: <span style={{ color:'#C5C9D0' }}>{risultato[0].cliente}</span> · {risultato.length} righe
+          <p style={{ fontSize:14, color:C.muted, marginBottom:6 }}>
+            Ordine {numero}/{anno} · Cliente: <span style={{ color:C.ink2 }}>{risultato[0].cliente}</span> · {risultato.length} righe
           </p>
-          <p style={{ fontSize:12, color:'#6B7280', marginBottom:16 }}>
+          <p style={{ fontSize:12, color:C.muted, marginBottom:16 }}>
             ✅/❌ riflette il disponibile netto complessivo dell'articolo (giacenza meno tutto l'impegnato), non una prenotazione garantita solo per questo ordine.
           </p>
           <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
             {risultato.map((r, i) => (
-              <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'#1E2227', border:'1px solid #2A3038', borderRadius:8, padding:'12px 16px' }}>
+              <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:C.sunk, border:'1px solid '+C.line, borderRadius:8, padding:'12px 16px' }}>
                 <div>
-                  <div style={{ fontSize:15, color:'#E8E6E1' }}>{r.descrizione}</div>
-                  <div style={{ fontSize:12, fontFamily:'monospace', color:'#8A9099' }}>{r.codice} · richiesti {fmt(r.quantita)} · a terra {fmt(r.giacenza)} · disponibile netto {fmt(r.disponibile)}</div>
+                  <div style={{ fontSize:15, color:C.ink }}>{r.descrizione}</div>
+                  <div style={{ fontSize:12, fontFamily:FONT_NUM, color:C.muted }}>{r.codice} · richiesti {fmt(r.quantita)} · a terra {fmt(r.giacenza)} · disponibile netto {fmt(r.disponibile)}</div>
                 </div>
                 <span style={{ fontSize:26 }}>{r.ok ? '✅' : '❌'}</span>
               </div>
@@ -324,24 +365,24 @@ function App() {
   const cercando = search.trim().length >= 2;
 
   return (
-    <div style={{minHeight:'100vh',background:'#14171A',padding:16}}>
+    <div style={{minHeight:'100vh',background:C.bg,padding:16}}>
       <div style={{maxWidth:1100,margin:'0 auto'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18,flexWrap:'wrap',gap:12}}>
           <div>
-            <a href="index.html" style={{fontSize:13,color:'#8A9099',textDecoration:'none'}}>← Giacenze Magazzino</a>
-            <h1 style={{fontSize:20,fontWeight:700,color:'#E8E6E1',margin:'3px 0 0'}}>⛽ Monitor Produzione</h1>
-            <p style={{fontSize:13,color:'#8A9099',margin:0}}>Materiale standard · aggiornato {DATA.generato}</p>
+            <a href="index.html" style={{fontSize:13,color:C.muted,textDecoration:'none'}}>← Giacenze Magazzino</a>
+            <h1 style={{fontSize:20,fontWeight:700,color:C.ink,margin:'3px 0 0'}}>⛽ Monitor Produzione</h1>
+            <p style={{fontSize:13,color:C.muted,margin:0}}>Materiale standard · aggiornato {DATA.generato}</p>
           </div>
-          <div style={{display:'flex',gap:4,background:'#1E2227',borderRadius:8,padding:4,flexWrap:'wrap'}}>
+          <div style={{display:'flex',gap:4,background:C.sunk,border:'1px solid '+C.line,borderRadius:8,padding:4,flexWrap:'wrap'}}>
             <button onClick={()=>{setView('home'); setSelectedCat(null); setSearch('');}}
-              style={{padding:'8px 16px',borderRadius:6,fontSize:14,fontWeight:600,background: view==='home'?'#2A3038':'transparent', color: view==='home'?'#E8E6E1':'#8A9099', border:'none',cursor:'pointer'}}>Categorie</button>
+              style={{padding:'8px 16px',borderRadius:6,fontSize:14,fontWeight:600,background: view==='home'?C.surface:'transparent', boxShadow: view==='home'?'0 0 0 1px '+C.line:'none', color: view==='home'?C.ink:C.muted, border:'none',cursor:'pointer'}}>Categorie</button>
             <button onClick={()=>{setView('report'); setSearch('');}}
-              style={{padding:'8px 16px',borderRadius:6,fontSize:14,fontWeight:600,display:'flex',alignItems:'center',gap:6,background: view==='report'?'#2A3038':'transparent', color: view==='report'?'#E8E6E1':'#8A9099', border:'none',cursor:'pointer'}}>
+              style={{padding:'8px 16px',borderRadius:6,fontSize:14,fontWeight:600,display:'flex',alignItems:'center',gap:6,background: view==='report'?C.surface:'transparent', boxShadow: view==='report'?'0 0 0 1px '+C.line:'none', color: view==='report'?C.ink:C.muted, border:'none',cursor:'pointer'}}>
               Report criticita'
-              <span style={{background:'#E5484D',color:'#1A1D21',fontSize:12,padding:'2px 8px',borderRadius:8,fontWeight:700}}>{DATA.report_critici.length}</span>
+              <span style={{background:C.red,color:C.onRed,fontSize:12,padding:'2px 8px',borderRadius:8,fontWeight:700}}>{DATA.report_critici.length}</span>
             </button>
             <button onClick={()=>{setView('ordine'); setSearch('');}}
-              style={{padding:'8px 16px',borderRadius:6,fontSize:14,fontWeight:600,background: view==='ordine'?'#2A3038':'transparent', color: view==='ordine'?'#E8E6E1':'#8A9099', border:'none',cursor:'pointer'}}>Controllo Ordine</button>
+              style={{padding:'8px 16px',borderRadius:6,fontSize:14,fontWeight:600,background: view==='ordine'?C.surface:'transparent', boxShadow: view==='ordine'?'0 0 0 1px '+C.line:'none', color: view==='ordine'?C.ink:C.muted, border:'none',cursor:'pointer'}}>Controllo Ordine</button>
           </div>
         </div>
 
@@ -351,10 +392,10 @@ function App() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="🔍 Cerca articolo, diametro o cliente..."
-            style={{width:'100%', fontSize:18, padding:'14px 16px', borderRadius:10, background:'#1E2227', border:'1px solid #3A4048', color:'#E8E6E1', outline:'none'}}
+            style={{width:'100%', fontSize:18, padding:'14px 16px', borderRadius:10, background:C.surface, border:'1px solid '+C.sep, color:C.ink, outline:'none'}}
           />
           {search && (
-            <button onClick={()=>setSearch('')} style={{position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', color:'#8A9099', fontSize:20, cursor:'pointer'}}>✕</button>
+            <button onClick={()=>setSearch('')} style={{position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', color:C.muted, fontSize:20, cursor:'pointer'}}>✕</button>
           )}
         </div>
 
