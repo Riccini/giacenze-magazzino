@@ -122,6 +122,10 @@ function punteggioMatch(query, articolo) {
   return punti;
 }
 
+function etichettaArticolo(a) {
+  return `${a.nome_visualizzare || a.descrizione} · ⌀ ${a.diametro}`;
+}
+
 function statoDisponibilita(pct) {
   if (pct < 0) return { colore:C.red, label:'Esaurito' };
   if (pct < 25) return { colore:C.amber, label:'Scorte limitate' };
@@ -171,7 +175,7 @@ function App() {
   const boxRef = useRef(null);
   const [aperto, setAperto] = useState(false);
 
-  const testoNormalizzatoSelezione = selezionato ? (selezionato.nome_visualizzare || selezionato.descrizione) : null;
+  const testoNormalizzatoSelezione = selezionato ? etichettaArticolo(selezionato) : null;
   const mostraSuggerimenti = aperto && testo.trim().length >= 2 && testo !== testoNormalizzatoSelezione;
 
   const suggerimenti = mostraSuggerimenti
@@ -186,7 +190,7 @@ function App() {
     const q = analizzaRichiesta(testo).quantita;
     setQuantitaSelezionata(q);
     setSelezionato(a);
-    setTesto(a.nome_visualizzare || a.descrizione);
+    setTesto(etichettaArticolo(a));
     setAperto(false);
   };
 
@@ -214,6 +218,7 @@ function App() {
             value={testo}
             onChange={e => { setTesto(e.target.value); setAperto(true); setSelezionato(null); }}
             onFocus={() => setAperto(true)}
+            onKeyDown={e => { if (e.key === 'Enter' && suggerimenti.length > 0) { e.preventDefault(); selezionaArticolo(suggerimenti[0]); } }}
             placeholder="Es: corrugato grigio 160, oppure kingcor SN8 160..."
             style={{ width:'100%', fontSize:24, padding:'22px 26px', borderRadius:34, background:C.surface, border:'2px solid '+C.sep, color:C.ink, outline:'none' }}
           />
@@ -232,7 +237,7 @@ function App() {
                     onMouseOut={e => e.currentTarget.style.background = 'none'}>
                     <div>
                       <div style={{ fontSize:20, color:C.ink }}>{a.nome_visualizzare || a.descrizione}</div>
-                      <div style={{ fontSize:16, color:C.muted }}>{a.categoria} · ⌀ {a.diametro}</div>
+                      <div style={{ fontSize:20, color:C.ink }}>{a.categoria} · ⌀ {a.diametro}</div>
                     </div>
                     <span style={{ width:14, height:14, borderRadius:'50%', background:stato.colore, flexShrink:0, marginLeft:12 }}></span>
                   </button>
