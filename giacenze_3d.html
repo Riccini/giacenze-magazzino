@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<script>
+(function() {
+  if (location.search.indexOf('_f=') === -1) {
+    location.replace(location.pathname + '?_f=' + Date.now());
+  }
+})();
+</script>
+<title>Giacenze 3D</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FFFFFF; --surface:#FFFFFF; --sunk:#F4F6F6; --ink:#1B2226; --ink2:#36434A; --muted:#5D6A70;
+  --line:#CBD2D4; --line2:#DDE2E3; --sep:#A9B2B6;
+  --accent:#1C5A96; --accent-ink:#FFFFFF;
+  --warn:#A8471B; --warnbg:#FBEADF; --ok:#2C7A4B; --okbg:#E1F1E7;
+  --red:#B4321E; --redbg:#F9E3DF; --amber:#C28A12; --on-red:#FFFFFF;
+  --fade0:rgba(255,255,255,0);
+  --font:"Poppins","Century Gothic","Segoe UI",system-ui,-apple-system,sans-serif;
+  --cond:"Barlow Semi Condensed","Arial Narrow","Segoe UI",system-ui,-apple-system,sans-serif;
+  --radius:10px; --radius-sm:8px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#13181A; --surface:#1C2326; --sunk:#171D20; --ink:#E4E9EA; --ink2:#C5CDD0; --muted:#97A3A8;
+    --line:#343E42; --line2:#2A3236; --sep:#56646A;
+    --accent:#6EA7DD; --accent-ink:#0E1A26;
+    --warn:#E59468; --warnbg:#3A2418; --ok:#7CC79A; --okbg:#1B3326;
+    --red:#EC7B66; --redbg:#3B1E1A; --amber:#E2B44C; --on-red:#1A1D21;
+    --fade0:rgba(19,24,26,0);
+    color-scheme:dark;
+  }
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:var(--font);font-size:15px;background:var(--bg);color:var(--ink);overflow:hidden;overscroll-behavior:none;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#app{height:100vh;height:100dvh;display:flex;flex-direction:column}
+.topbar{display:flex;align-items:center;gap:14px;min-height:52px;padding:8px 14px;background:var(--surface);border-bottom:1px solid var(--line)}
+.back{font:600 15px/1 var(--cond);color:var(--accent);text-decoration:none;white-space:nowrap}
+.ttl{display:flex;flex-direction:column;line-height:1.15}
+.ttl b{font:700 18px/1.1 var(--cond)}
+.ttl span{font-size:11px;color:var(--muted)}
+.chips{display:flex;gap:6px;padding:8px 12px;overflow-x:auto;border-bottom:1px solid var(--line2);background:var(--surface);scrollbar-width:none;flex:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;font:600 13px/1 var(--cond);padding:8px 12px;border:1px solid var(--line);border-radius:99px;background:var(--surface);color:var(--ink2)}
+.chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+#stage{position:relative;flex:1;min-height:0;overflow:hidden;background:var(--bg)}
+#gl{position:absolute;left:0;top:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#gl:active{cursor:grabbing}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lbl{position:absolute;left:0;top:0;white-space:nowrap;font:600 12px/1 var(--cond);color:var(--muted);will-change:transform}
+.lbl.row{font-size:13px;color:var(--ink)}
+.lbl.grp{font-size:13px;font-weight:700;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:3px 6px}
+#legend{position:absolute;left:10px;top:10px;display:flex;flex-direction:column;gap:5px;font:600 12px/1.1 var(--cond);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;opacity:.95;max-width:210px}
+#legend .it{display:flex;align-items:center;gap:7px;color:var(--ink2)}
+#legend .sw{width:11px;height:11px;border-radius:3px;flex:none}
+#legend .sc{color:var(--muted);font-weight:500;margin-top:2px}
+#tools{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
+.tb{width:40px;height:40px;display:flex;align-items:center;justify-content:center;font:600 17px/1 var(--cond);background:var(--surface);border:1px solid var(--line);border-radius:10px;color:var(--ink)}
+.tb:active{background:var(--line2)}
+.tb[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+#tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font:600 12px/1.3 var(--cond);padding:6px 9px;border-radius:7px;max-width:240px;display:none;z-index:5}
+#msg{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:2rem;color:var(--muted);font-size:14px;line-height:1.5}
+#hint{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);white-space:nowrap;font-size:12px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:6px 12px;pointer-events:none;transition:opacity .6s}
+#sheet{position:absolute;left:8px;right:8px;bottom:8px;margin:0 auto;max-width:560px;max-height:52%;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;box-shadow:0 8px 24px rgba(0,0,0,.18);display:none;z-index:6}
+#sheet h2{font:700 19px/1.2 var(--cond);padding-right:28px}
+#sheet .sub{font-size:12px;color:var(--muted);margin-top:2px}
+#sheet .x{position:absolute;right:8px;top:6px;border:none;background:none;font-size:22px;color:var(--muted);line-height:1;padding:4px 8px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
+.st{background:var(--sunk);border:1px solid var(--line);border-radius:8px;padding:8px}
+.st .l{font:600 10px/1 var(--cond);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.st .v{font:700 20px/1.15 var(--cond);margin-top:4px}
+.cod{font:500 12px/1.4 var(--cond);color:var(--muted);margin-top:8px}
+.ord{margin-top:10px}
+.ord .t{font:600 10px/1 var(--cond);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.ord .r{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line2);font-size:12px}
+.ord .r span:last-child{font:700 14px/1.2 var(--cond);white-space:nowrap}
+.ord .r small{display:block;color:var(--muted);font-size:11px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <a class="back" href="index.html">&larr; Giacenze</a>
+    <div class="ttl"><b>Vista 3D</b><span id="upd">&nbsp;</span></div>
+  </header>
+  <nav class="chips" id="chips" aria-label="Categorie"></nav>
+  <main id="stage">
+    <canvas id="gl"></canvas>
+    <div id="labels"></div>
+    <div id="legend">
+      <div class="it"><span class="sw" style="background:var(--accent)"></span>Impegnato</div>
+      <div class="it"><span class="sw" style="background:var(--ok)"></span>Disponibile</div>
+      <div class="it"><span class="sw" style="background:var(--red)"></span>Disponibile sotto zero</div>
+      <div class="sc" id="scale"></div>
+    </div>
+    <div id="tools">
+      <button class="tb" id="bIn" aria-label="Zoom avanti">+</button>
+      <button class="tb" id="bOut" aria-label="Zoom indietro">&minus;</button>
+      <button class="tb" id="bTop" aria-label="Vista dall'alto" title="Vista dall'alto">&#11015;</button>
+      <button class="tb" id="bReset" aria-label="Ripristina vista" title="Ripristina vista">&#8962;</button>
+      <button class="tb" id="bSqrt" aria-label="Scala compressa" aria-pressed="false" title="Scala compressa (i valori piccoli si vedono meglio)">&radic;</button>
+    </div>
+    <div id="hint">Trascina per ruotare &middot; pizzica per zoom</div>
+    <div id="tip"></div>
+    <div id="msg"></div>
+    <section id="sheet" aria-live="polite"></section>
+  </main>
+</div>
+<script>
+const DATA = {};
+
+const $ = id => document.getElementById(id);
+const cssv = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const fmt = n => Math.round(n).toLocaleString('it-IT');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let APP = null, catIdx = 0, sqrtScale = false, sel = null;
+let renderer, scene, camera, raycaster, content = null;
+const view = { az: -0.55, el: 0.6, dist: 20, target: null };
+let fitDist = 20, vAz = 0, vEl = 0, dirty = true;
+const FOV = 40;
+
+/* ---------- dati ---------- */
+async function loadData() {
+  if (DATA && DATA.categorie) return DATA;
+  const r = await fetch('monitor_produzione.html?t=' + Date.now(), { cache: 'no-store' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const t = await r.text();
+  const i = t.indexOf('const DATA = ');
+  if (i < 0) throw new Error('dati non trovati');
+  const s = i + 13, e = t.indexOf(';\n', s);
+  return JSON.parse(t.slice(s, e));
+}
+
+/* ---------- raggruppamento colonne (come nel disegno: colore -> lunghezze) ---------- */
+const norm = s => String(s).toLowerCase().replace(/\s+/g, ' ').trim();
+function parseVar(name) {
+  const n = String(name || '').trim();
+  const re = /(\d+(?:[.,]\d+)?)\s*(?:mt|ml|m)\b\.?/gi;
+  let last = null, m;
+  while ((m = re.exec(n))) last = m;
+  if (!last) return { base: n, len: null };
+  const len = parseFloat(last[1].replace(',', '.'));
+  const base = (n.slice(0, last.index) + ' ' + n.slice(last.index + last[0].length)).replace(/\s+/g, ' ').trim();
+  return { base: base || '—', len };
+}
+const COLORS = ['grigio', 'nero', 'blu', 'giallo', 'rosso', 'verde'];
+const firstNum = s => { const m = s.match(/(\d+(?:[.,]\d+)?)/); return m ? parseFloat(m[1].replace(',', '.')) : null; };
+const colorIdx = s => { const i = COLORS.indexOf(norm(s).split(' ').find(w => COLORS.includes(w)) || ''); return i < 0 ? 99 : i; };
+function cmpGroup(a, b) {
+  const na = firstNum(a.base), nb = firstNum(b.base);
+  if (na !== null && nb === null) return -1;
+  if (na === null && nb !== null) return 1;
+  if (na !== null && nb !== null && na !== nb) return na - nb;
+  if (na === null && nb === null) { const d = colorIdx(a.base) - colorIdx(b.base); if (d) return d; }
+  return a.base.localeCompare(b.base, 'it', { numeric: true });
+}
+
+function buildModel(cat) {
+  const rows = cat.diametri.map(d => d.diametro);
+  const groups = new Map(), raw = [];
+  cat.diametri.forEach((d, ri) => d.articoli.forEach(a => {
+    const p = parseVar(a.nome_visualizzare || a.codice);
+    const key = norm(p.base), len = p.len === null ? -1 : p.len;
+    if (!groups.has(key)) groups.set(key, { key, base: p.base, lens: new Set() });
+    groups.get(key).lens.add(len);
+    raw.push({ ri, key, len, art: a });
+  }));
+  const glist = [...groups.values()].sort(cmpGroup);
+  const cols = [], gpos = [];
+  let x = 0;
+  glist.forEach(g => {
+    const lens = [...g.lens].sort((a, b) => a - b), x0 = x;
+    lens.forEach(len => { cols.push({ key: g.key, len, x }); x += 1; });
+    gpos.push({ base: g.base, x0: x0, x1: x - 1, cx: (x0 + x - 1) / 2 });
+    x += 0.55;
+  });
+  const xmax = Math.max(0, x - 0.55 - 1);
+  const cells = new Map();
+  raw.forEach(r => {
+    const ci = cols.findIndex(c => c.key === r.key && c.len === r.len);
+    const k = r.ri + '|' + ci;
+    if (!cells.has(k)) cells.set(k, { ri: r.ri, ci, x: cols[ci].x, arts: [], g: 0, imp: 0, disp: 0 });
+    const c = cells.get(k);
+    c.arts.push(r.art); c.g += r.art.giacenza; c.imp += r.art.impegnato; c.disp += r.art.disponibile;
+  });
+  let maxV = 1;
+  cells.forEach(c => { maxV = Math.max(maxV, c.imp, c.disp); });
+  return { rows, cols, gpos, xmax, cells, maxV, cat };
+}
+
+/* ---------- scena ---------- */
+function initGL() {
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas: $('gl'), antialias: true, alpha: true });
+  } catch (e) { return false; }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 1000);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f94, 0.95));
+  const dl = new THREE.DirectionalLight(0xffffff, 0.55); dl.position.set(6, 14, 9); scene.add(dl);
+  raycaster = new THREE.Raycaster();
+  view.target = new THREE.Vector3();
+  return true;
+}
+
+function disposeContent() {
+  if (!content) return;
+  scene.remove(content.group);
+  const mats = new Set();
+  content.group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) mats.add(o.material); });
+  mats.forEach(m => m.dispose());
+  content.labels.forEach(l => l.el.remove());
+  content = null;
+}
+
+function addBox(group, pickables, cell, x, z, h, color, edgeCol) {
+  const geo = new THREE.BoxGeometry(0.36, h, 0.36);
+  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color }));
+  mesh.position.set(x, h / 2, z);
+  mesh.userData.cell = cell;
+  group.add(mesh); pickables.push(mesh);
+  const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: edgeCol, transparent: true, opacity: 0.35 }));
+  edges.position.copy(mesh.position); group.add(edges);
+  mesh.userData.edges = edges;
+  return mesh;
+}
+
+function build() {
+  disposeContent();
+  sel = null; hideSheet();
+  const cat = APP.categorie[catIdx];
+  const M = buildModel(cat);
+  const D = M.rows.length;
+  if (!M.cells.size) { showMsg('Nessun articolo in questa categoria.'); return; }
+  showMsg('');
+  const C = {
+    imp: new THREE.Color(cssv('--accent')), ok: new THREE.Color(cssv('--ok')), neg: new THREE.Color(cssv('--red')),
+    floor: new THREE.Color(cssv('--sunk')), tile: new THREE.Color(cssv('--surface')),
+    line: new THREE.Color(cssv('--line')), sep: new THREE.Color(cssv('--sep')), edge: new THREE.Color(cssv('--ink'))
+  };
+  const group = new THREE.Group();
+  const pickables = [], tiles = new Map();
+  const W = M.xmax + 1;
+  const Hmax = Math.max(4, Math.min(12, 0.28 * W));
+  const hOf = v => { const r = Math.max(0, v) / M.maxV; return Hmax * (sqrtScale ? Math.sqrt(r) : r); };
+
+  // pavimento
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W + 0.6, D + 0.1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: C.floor }));
+  floor.position.set(M.xmax / 2, -0.002, (D - 1) / 2); group.add(floor);
+  // linee di griglia
+  const pts = [], gpts = [];
+  for (let r = 0; r <= D; r++) pts.push(-0.5, 0, r - 0.5, M.xmax + 0.5, 0, r - 0.5);
+  M.cols.forEach(c => pts.push(c.x - 0.5, 0, -0.5, c.x - 0.5, 0, D - 0.5, c.x + 0.5, 0, -0.5, c.x + 0.5, 0, D - 0.5));
+  M.gpos.forEach(g => gpts.push(g.x0 - 0.5, 0.001, -0.5, g.x0 - 0.5, 0.001, D - 0.5, g.x1 + 0.5, 0.001, -0.5, g.x1 + 0.5, 0.001, D - 0.5));
+  const mkLines = (arr, col) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3)); return new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: col })); };
+  group.add(mkLines(pts, C.line)); group.add(mkLines(gpts, C.sep));
+
+  // celle con le due torri
+  M.cells.forEach(cell => {
+    const t = new THREE.Mesh(new THREE.PlaneGeometry(0.94, 0.94).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: C.tile }));
+    t.position.set(cell.x, 0.003, cell.ri); group.add(t); tiles.set(cell, t);
+    const hi = cell.imp > 0 ? Math.max(0.06, hOf(cell.imp)) : 0;
+    if (hi) cell.mImp = addBox(group, pickables, cell, cell.x - 0.2, cell.ri, hi, C.imp, C.edge);
+    if (cell.disp < 0) cell.mDisp = addBox(group, pickables, cell, cell.x + 0.2, cell.ri, 0.05, C.neg, C.edge);
+    else if (cell.disp > 0) cell.mDisp = addBox(group, pickables, cell, cell.x + 0.2, cell.ri, Math.max(0.06, hOf(cell.disp)), C.ok, C.edge);
+    if (!cell.mImp && !cell.mDisp) { cell.mDisp = addBox(group, pickables, cell, cell.x, cell.ri, 0.03, C.line, C.edge); }
+  });
+
+  // etichette HTML ancorate alla scena
+  const labels = [], host = $('labels'); host.innerHTML = '';
+  const addLbl = (text, x, y, z, cls) => { const el = document.createElement('div'); el.className = 'lbl ' + cls; el.textContent = text; host.appendChild(el); labels.push({ el, pos: new THREE.Vector3(x, y, z) }); };
+  M.rows.forEach((d, ri) => addLbl('Ø ' + d, -1.0, 0, ri, 'row'));
+  M.cols.forEach(c => { if (c.len >= 0) addLbl(fmt(c.len) + ' m', c.x, 0, D - 0.5 + 0.45, 'col'); });
+  M.gpos.forEach(g => addLbl(g.base, g.cx, 0, D - 0.5 + 1.1, 'grp'));
+
+  scene.add(group);
+  content = { group, pickables, labels, M, tiles, C, Hmax };
+  measureLabels();
+  $('scale').textContent = 'Torre più alta = ' + fmt(M.maxV) + ' m' + (sqrtScale ? ' · scala compressa' : '');
+  fitView();
+}
+
+function fitView() {
+  const M = content.M, D = M.rows.length;
+  const portrait = camera.aspect < 0.9, wide = (M.xmax + 1) > D * 1.15;
+  view.az = (portrait && wide) ? -1.05 : -0.55; view.el = portrait ? 0.82 : 0.6; vAz = vEl = 0;
+  const pts = [];
+  [-1.5, M.xmax + 1.0].forEach(x => [-0.6, D + 0.9].forEach(z => pts.push(new THREE.Vector3(x, 0, z))));
+  content.pickables.forEach(m => { const h = m.geometry.parameters.height; pts.push(new THREE.Vector3(m.position.x, h, m.position.z), new THREE.Vector3(m.position.x, 0, m.position.z)); });
+  content.labels.forEach(l => pts.push(l.pos));
+  view.target.set(M.xmax / 2, content.Hmax * 0.2, (D - 1) / 2);
+  let dist = 0.5 * Math.sqrt((M.xmax + 1) ** 2 + D * D + content.Hmax ** 2) / Math.sin(FOV * Math.PI / 360) * 1.2;
+  const v = new THREE.Vector3();
+  for (let it = 0; it < 8; it++) {
+    view.dist = dist; camera.far = Math.max(1000, dist * 10); camera.updateProjectionMatrix(); updateCamera();
+    let a = 1e9, b = -1e9, c = 1e9, d = -1e9;
+    pts.forEach(p => { v.copy(p).project(camera); a = Math.min(a, v.x); b = Math.max(b, v.x); c = Math.min(c, v.y); d = Math.max(d, v.y); });
+    const halfH = dist * Math.tan(FOV * Math.PI / 360), halfW = halfH * camera.aspect;
+    const r = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0), u = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+    view.target.addScaledVector(r, (a + b) / 2 * halfW).addScaledVector(u, (c + d) / 2 * halfH);
+    dist *= Math.max((b - a) / 2, (d - c) / 2) / 0.9;
+  }
+  fitDist = dist; view.dist = dist;
+  requestRender();
+}
+
+function resize() {
+  if (!renderer) return;
+  const st = $('stage'), w = st.clientWidth, h = st.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix();
+  requestRender();
+}
+
+function updateCamera() {
+  const t = view.target, d = view.dist, ce = Math.cos(view.el);
+  camera.position.set(t.x + d * ce * Math.sin(view.az), t.y + d * Math.sin(view.el), t.z + d * ce * Math.cos(view.az));
+  camera.lookAt(t);
+  camera.updateMatrixWorld();
+}
+
+function measureLabels() {
+  if (!content) return;
+  const rank = { grp: 0, row: 1, col: 2 };
+  content.labels.forEach(l => { l.w = l.el.offsetWidth; l.h = l.el.offsetHeight; l.rank = rank[l.el.classList.contains('grp') ? 'grp' : l.el.classList.contains('row') ? 'row' : 'col']; });
+  content.order = content.labels.slice().sort((a, b) => a.rank - b.rank);
+}
+
+function updateLabels() {
+  if (!content) return;
+  const st = $('stage'), w = st.clientWidth, h = st.clientHeight, v = new THREE.Vector3(), placed = [];
+  content.order.forEach(l => {
+    v.copy(l.pos).project(camera);
+    const sx = (v.x * 0.5 + 0.5) * w, sy = (-v.y * 0.5 + 0.5) * h;
+    const x0 = sx - l.w / 2 - 3, x1 = sx + l.w / 2 + 3, y0 = sy - l.h / 2 - 2, y1 = sy + l.h / 2 + 2;
+    let ok = v.z > -1 && v.z < 1 && x1 > 0 && x0 < w && y1 > 0 && y0 < h;
+    if (ok) for (let i = 0; i < placed.length; i++) { const r = placed[i]; if (!(x1 < r[0] || x0 > r[2] || y1 < r[1] || y0 > r[3])) { ok = false; break; } }
+    if (!ok) { l.el.style.display = 'none'; return; }
+    placed.push([x0, y0, x1, y1]);
+    l.el.style.display = '';
+    l.el.style.transform = 'translate(' + sx.toFixed(1) + 'px,' + sy.toFixed(1) + 'px) translate(-50%,-50%)';
+  });
+}
+
+function requestRender() { if (!dirty) { dirty = true; } if (!raf) raf = requestAnimationFrame(tick); }
+let raf = 0;
+function tick() {
+  raf = 0;
+  if (Math.abs(vAz) > 1e-4 || Math.abs(vEl) > 1e-4) {
+    view.az += vAz; view.el = Math.min(1.5, Math.max(0.05, view.el + vEl));
+    vAz *= 0.93; vEl *= 0.93; dirty = true;
+    if (Math.abs(vAz) > 1e-4 || Math.abs(vEl) > 1e-4) raf = requestAnimationFrame(tick);
+  }
+  if (!dirty || !renderer) return;
+  dirty = false;
+  updateCamera(); updateLabels();
+  renderer.render(scene, camera);
+}
+
+/* ---------- interazione ---------- */
+const ptrs = new Map();
+let moved = 0, downT = 0, pinchD = 0, hoverBusy = false;
+
+function pan(dx, dy) {
+  const k = 2 * view.dist * Math.tan(FOV * Math.PI / 360) / $('stage').clientHeight;
+  const rx = Math.cos(view.az), rz = -Math.sin(view.az), fx = -Math.sin(view.az), fz = -Math.cos(view.az);
+  view.target.x += -rx * dx * k + fx * dy * k;
+  view.target.z += -rz * dx * k + fz * dy * k;
+}
+function zoomBy(f) { view.dist = Math.min(fitDist * 3, Math.max(1.5, view.dist * f)); requestRender(); }
+
+function setupInput() {
+  const cv = $('gl');
+  cv.addEventListener('contextmenu', e => e.preventDefault());
+  cv.addEventListener('pointerdown', e => {
+    cv.setPointerCapture(e.pointerId);
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 1) { moved = 0; downT = performance.now(); vAz = vEl = 0; $('hint').style.opacity = 0; }
+    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinchD = Math.hypot(a.x - b.x, a.y - b.y); moved = 99; }
+  });
+  cv.addEventListener('pointermove', e => {
+    const p = ptrs.get(e.pointerId);
+    if (!p) { if (e.pointerType === 'mouse') hover(e); return; }
+    const dx = e.clientX - p.x, dy = e.clientY - p.y;
+    if (ptrs.size === 1) {
+      moved += Math.abs(dx) + Math.abs(dy);
+      if (e.buttons & 2 || e.shiftKey) pan(dx, dy);
+      else { view.az -= dx * 0.008; view.el = Math.min(1.5, Math.max(0.05, view.el + dy * 0.008)); vAz = -dx * 0.008; vEl = dy * 0.008; }
+      p.x = e.clientX; p.y = e.clientY; requestRender();
+    } else if (ptrs.size === 2) {
+      const before = [...ptrs.values()].map(q => ({ x: q.x, y: q.y }));
+      p.x = e.clientX; p.y = e.clientY;
+      const [a, b] = [...ptrs.values()], d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinchD > 0 && d > 0) view.dist = Math.min(fitDist * 3, Math.max(1.5, view.dist * pinchD / d));
+      pinchD = d;
+      const mx0 = (before[0].x + before[1].x) / 2, my0 = (before[0].y + before[1].y) / 2;
+      pan((a.x + b.x) / 2 - mx0, (a.y + b.y) / 2 - my0);
+      requestRender();
+    }
+  });
+  const up = e => {
+    if (!ptrs.has(e.pointerId)) return;
+    const wasSingle = ptrs.size === 1;
+    ptrs.delete(e.pointerId);
+    if (ptrs.size === 1) { vAz = vEl = 0; }
+    if (wasSingle) {
+      if (e.type === 'pointerup' && moved < 6 && performance.now() - downT < 600) { vAz = vEl = 0; pick(e); }
+      else if (Math.abs(vAz) > 1e-4 || Math.abs(vEl) > 1e-4) requestRender();
+    }
+  };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('wheel', e => { e.preventDefault(); zoomBy(Math.exp(e.deltaY * 0.0015)); }, { passive: false });
+  cv.addEventListener('dblclick', () => { if (content) fitView(); });
+  $('bIn').onclick = () => zoomBy(0.8);
+  $('bOut').onclick = () => zoomBy(1.25);
+  $('bReset').onclick = () => { if (content) fitView(); };
+  $('bTop').onclick = () => { view.el = 1.45; view.az = 0; vAz = vEl = 0; requestRender(); };
+  $('bSqrt').onclick = e => { sqrtScale = !sqrtScale; e.currentTarget.setAttribute('aria-pressed', sqrtScale); build(); };
+  new ResizeObserver(resize).observe($('stage'));
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (content) build(); });
+}
+
+function rayAt(e) {
+  const r = $('gl').getBoundingClientRect();
+  raycaster.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+  const hit = raycaster.intersectObjects(content.pickables, false)[0];
+  return hit ? hit.object.userData.cell : null;
+}
+function pick(e) {
+  if (!content) return;
+  const cell = rayAt(e);
+  select(cell);
+}
+function hover(e) {
+  if (!content || hoverBusy) return;
+  hoverBusy = true;
+  requestAnimationFrame(() => {
+    hoverBusy = false;
+    const cell = content ? rayAt(e) : null, tip = $('tip');
+    if (!cell) { tip.style.display = 'none'; $('gl').style.cursor = 'grab'; return; }
+    $('gl').style.cursor = 'pointer';
+    const r = $('stage').getBoundingClientRect();
+    tip.innerHTML = esc(cellName(cell)) + '<br>Disp. ' + fmt(cell.disp) + ' · Imp. ' + fmt(cell.imp);
+    tip.style.display = 'block';
+    tip.style.left = Math.min(e.clientX - r.left + 14, r.width - 250) + 'px';
+    tip.style.top = (e.clientY - r.top + 14) + 'px';
+  });
+}
+
+/* ---------- selezione + scheda ---------- */
+const cellName = c => c.arts.map(a => a.nome_visualizzare || a.codice).filter((v, i, a) => a.indexOf(v) === i).join(' / ');
+function select(cell) {
+  if (content) content.tiles.forEach((t, c) => t.material.color.copy(c === cell ? new THREE.Color(cssv('--amber')) : content.C.tile));
+  sel = cell;
+  if (!cell) { hideSheet(); requestRender(); return; }
+  const cat = content.M.cat, diam = content.M.rows[cell.ri];
+  const dd = x => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(x || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] : (x || ''); };
+  const ords = [];
+  cell.arts.forEach(a => (a.ordini || []).forEach(o => ords.push(o)));
+  ords.sort((a, b) => String(b.data_evasione).localeCompare(String(a.data_evasione)));
+  const neg = cell.disp < 0;
+  $('sheet').innerHTML =
+    '<button class="x" aria-label="Chiudi" onclick="select(null)">&times;</button>' +
+    '<h2>' + esc(cellName(cell)) + '</h2><div class="sub">' + esc(cat.categoria) + ' · Ø ' + esc(diam) + '</div>' +
+    '<div class="stats">' +
+    '<div class="st"><div class="l">A terra</div><div class="v">' + fmt(cell.g) + '</div></div>' +
+    '<div class="st"><div class="l">Impegnato</div><div class="v" style="color:var(--accent)">' + fmt(cell.imp) + '</div></div>' +
+    '<div class="st"><div class="l">Disponibile</div><div class="v" style="color:' + (neg ? 'var(--red)' : 'var(--ok)') + '">' + fmt(cell.disp) + '</div></div></div>' +
+    '<div class="cod">' + cell.arts.map(a => esc(a.codice)).join(' · ') + '</div>' +
+    (ords.length ? '<div class="ord"><div class="t">Ordini aperti · dal più recente</div>' +
+      ords.slice(0, 12).map(o => '<div class="r"><span>' + esc(o.cliente) + '<small>consegna ' + esc(dd(o.data_evasione)) + '</small></span><span>' + fmt(o.quantita) + '</span></div>').join('') +
+      (ords.length > 12 ? '<div class="cod">+ ' + (ords.length - 12) + ' altri ordini</div>' : '') + '</div>' : '');
+  $('sheet').style.display = 'block'; $('sheet').scrollTop = 0;
+  requestRender();
+}
+function hideSheet() { $('sheet').style.display = 'none'; }
+function showMsg(t) { const m = $('msg'); m.textContent = t; m.style.display = t ? 'flex' : 'none'; }
+
+/* ---------- avvio ---------- */
+function buildChips() {
+  const nav = $('chips'); nav.innerHTML = '';
+  APP.categorie.forEach((c, i) => {
+    const b = document.createElement('button'); b.className = 'chip' + (i === catIdx ? ' on' : ''); b.textContent = c.categoria;
+    b.onclick = () => { catIdx = i; [...nav.children].forEach((x, j) => x.classList.toggle('on', j === i)); b.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }); build(); };
+    nav.appendChild(b);
+  });
+}
+(async function main() {
+  if (typeof THREE === 'undefined') { showMsg('Impossibile caricare la libreria 3D (serve la connessione internet).'); return; }
+  if (!initGL()) { showMsg('Questo dispositivo o browser non supporta la grafica 3D (WebGL).'); return; }
+  setupInput();
+  try { APP = await loadData(); }
+  catch (e) { showMsg('Dati non disponibili. Apri la pagina dal sito (non dal file scaricato).'); return; }
+  $('upd').textContent = 'aggiornato ' + (APP.generato || '');
+  buildChips(); resize(); build();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { measureLabels(); requestRender(); });
+  setTimeout(() => { $('hint').style.opacity = 0; }, 6000);
+})();
+</script>
+</body>
+</html>
