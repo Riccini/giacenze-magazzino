@@ -1,0 +1,48 @@
+name: Aggiorna Giacenze
+
+on:
+  push:
+    paths:
+      - 'Stampa_saldi*.xlsx'
+      - 'Stampa_portafoglio*.xlsx'
+      - 'Lista Articoli per consultazione.xlsx'
+  workflow_dispatch:
+
+jobs:
+  aggiorna:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Installa dipendenze
+        run: pip install openpyxl
+
+      - name: Genera index.html
+        run: python aggiorna_giacenze.py
+
+      - name: Genera ordini.json per il piano di carico
+        continue-on-error: true
+        run: python genera_ordini_json.py
+
+      - name: Pubblica index.html e ordini.json
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add index.html
+          if [ -f ordini.json ]; then git add ordini.json; fi
+          git commit -m "Aggiornamento giacenze $(date '+%d/%m/%Y %H:%M')" || { echo "Nessuna modifica"; exit 0; }
+          for i in 1 2 3 4 5; do
+            git push && exit 0
+            echo "Push rifiutato (altro aggiornamento in corso), riprovo..."
+            sleep $((i * 5))
+            git pull --rebase -X theirs || git rebase --abort
+          done
+          exit 1
