@@ -276,6 +276,10 @@ body.drag .veil{display:grid}
 #fbState[data-st="err"]{color:var(--warn); border-color:currentColor; background:var(--warn-bg)}
 #copyDlg{width:min(520px,calc(100vw - 24px)); padding:18px 20px}
 #copyDlg .copy-b{display:flex; flex-direction:column; gap:8px; margin-top:12px}
+.qin{display:inline-flex; align-items:center; gap:4px; justify-content:flex-end}
+.qin input{width:72px; text-align:right; background:var(--card); border:1px solid var(--line); border-radius:5px; padding:3px 5px; color:var(--ink); font-size:12.5px}
+.qord{display:block; font-size:11.5px; color:var(--muted)} .qord.part{color:var(--warn); font-weight:600}
+.c-q .link{font-size:11.5px}
 .pf-st{font-size:13px; color:var(--muted); margin:0 0 8px}
 .pf-row{display:flex; gap:10px; align-items:flex-end}
 .pf-row .fld{flex:1}
@@ -424,7 +428,10 @@ body.drag .veil{display:grid}
           <label class="fld full">Famiglia
             <select id="nFam"></select></label>
           <div class="full fgrid famnew" id="nFamNew" hidden>
-            <label class="fld full">Nome della famiglia<input id="nFamName" type="text" autocomplete="off"></label>
+            <label class="fld full"><span id="nFamNameLab">Nome della famiglia</span><input id="nFamName" type="text" autocomplete="off"></label>
+          </div>
+          <div class="full fgrid famnew" id="nColors">
+            <p class="full copyinfo" id="nColHint"></p>
             <label class="fld">Colore esterno<input id="nColOut" type="color" value="#2a6f97"></label>
             <label class="fld">Colore interno<input id="nColInn" type="color" value="#1c1e21"></label>
             <label class="fld">Aspetto<select id="nAsp"><option value="liscio">Liscio</option><option value="corrugato">Corrugato</option><option value="riga">Liscio con riga colorata</option></select></label>
@@ -984,6 +991,7 @@ const Lib = (() => {
         const c = classify(r.desc, r.um, r.codice);
         const rec = { orderId: o.id, riga: ri, cls: c, nPezzi: 0, nNested: 0, ids: new Set(), mixed: false };
         info.push(rec);
+        if (!(r.qta > 0)) { rec.skip = true; return; }
         if (!c.key) return;
         if (c.tipo === 'collo') {
           const col = CUSTOM.colli[c.collo]; if (!col) return;
@@ -1552,7 +1560,9 @@ const FIREBASE_DOC = 'carico-camion/database';
       const c = Lib.classify(r.desc, r.um, r.codice);
       if (c.key && r.codice) { const l = S.seen[c.key] || (S.seen[c.key] = []); if (!l.includes(r.codice)) l.push(r.codice); }
     }));
-    const { items, info } = Lib.buildItems(active, S.dims, { truckW: S.cfg.W, nestBars: S.cfg.nestBars, nestRolls: S.cfg.nestRolls, mixPal: S.cfg.mixPal });
+    // quantità scelta da caricare (se cambiata) al posto di quella ordinata
+    const activeQ = active.map(o => ({ ...o, righe: o.righe.map(r => r.carico == null ? r : { ...r, qta: r.carico, bancali: null }) }));
+    const { items, info } = Lib.buildItems(activeQ, S.dims, { truckW: S.cfg.W, nestBars: S.cfg.nestBars, nestRolls: S.cfg.nestRolls, mixPal: S.cfg.mixPal });
     // firma stabile di ogni collo, per ricordare quelli spostati a mano
     const occ = new Map(), fixed = new Map();
     items.forEach(it => {
@@ -1576,6 +1586,7 @@ const FIREBASE_DOC = 'carico-camion/database';
   /* ---------- Pannello ordini ---------- */
   function lineSummary(rec) {
     const c = rec.cls;
+    if (rec.skip) return ['Non caricata in questo viaggio.', 'muted'];
     if (c.tipo === 'accessorio') return ['Accessorio, non occupa spazio nel piano.', 'muted'];
     if (!c.key) return ['Non riconosciuto, escluso dal carico.', 'warn'];
     const n = rec.nPezzi, out = rec.ids.filter(id => !P.placedIds.has(id) && !P.groundIds.has(id)).length, nG = rec.ids.filter(id => P.groundIds.has(id)).length;
@@ -1596,6 +1607,14 @@ const FIREBASE_DOC = 'carico-camion/database';
     if (nG) what += `, ${nG} a terra`;
     return out ? [`${what}. ${out} ${out === 1 ? 'collo non entra' : 'colli non entrano'}`, 'warn'] : [what, ''];
   }
+  const fmtQ = v => fmt(v, v % 1 ? 2 : 0);
+  function qtyCell(r, ri, on) {
+    const part = r.carico != null, v = part ? r.carico : r.qta;
+    if (!on) return `${fmtQ(r.qta)} ${esc(r.um)}`;
+    return `<label class="qin"><input type="number" min="0" step="any" inputmode="decimal" data-opt="qta" data-ri="${ri}" value="${v}" aria-label="Quantità da caricare"> ${esc(r.um)}</label>` +
+      `<span class="qord${part ? ' part' : ''}">${part ? `di ${fmtQ(r.qta)} ordinati` : 'ordinati'}</span>` +
+      (part ? `<button class="link" data-qall="${ri}">Tutto</button>` : `<button class="link" data-qzero="${ri}">Non caricare</button>`);
+  }
   function renderPanel() {
     const box = $('#orders');
     if (!S.orders.length) {
@@ -1615,7 +1634,8 @@ const FIREBASE_DOC = 'carico-camion/database';
         const [txt, k] = on && rec ? lineSummary(rec) : ['', ''];
         const noDb = !!r.codice && !Lib.lookupCode(r.codice);
         const miss = on && rec && (rec.cls.tipo === 'altro' || rec.cls.tipo === 'accessorio' || noDb);
-        const add = miss ? ` <button class="link" data-newcode="${esc(r.codice)}" data-newdesc="${esc(r.desc)}" data-newum="${esc(r.um)}">Aggiungi al database</button>` : '';
+        const known = rec && rec.cls.key && (rec.cls.tipo === 'barra' || rec.cls.tipo === 'rotolo');
+        const add = miss ? ` <button class="link" data-newcode="${esc(r.codice)}" data-newdesc="${esc(r.desc)}" data-newum="${esc(r.um)}"${known ? ` data-newkey="${esc(rec.cls.key)}" data-newfam="${esc(rec.cls.fam || '')}" data-newtipo="${rec.cls.tipo}"` : ''}>Aggiungi al database</button>` : '';
         let opt = '';
         if (on && rec && rec.cls.tipo === 'barra' && rec.nPezzi) {
           const me = dimsOf(rec.cls.key);
@@ -1625,10 +1645,11 @@ const FIREBASE_DOC = 'carico-camion/database';
           if (!hosts.length && r.nest === undefined && !rec.nNested && recs.filter(h => h.cls.tipo === 'barra' && h.nPezzi).length > 1) opt += '<span>Non si può infilare: nello stesso ordine serve una barra più grande e lunga almeno quanto questa.</span>';
           if (opt) opt = `<div class="lopt">${opt}</div>`;
         }
-        return `<tr><td class="c-cod">${esc(r.codice)}</td><td>${esc(r.desc)}${noDb ? '<span class="nodb">Codice non nel database</span>' : ''}<span class="sum ${k}">${esc(txt)}${add}</span>${opt}</td><td class="c-q">${fmt(r.qta, 0)} ${esc(r.um)}</td></tr>`;
+        return `<tr><td class="c-cod">${esc(r.codice)}</td><td>${esc(r.desc)}${noDb ? '<span class="nodb">Codice non nel database</span>' : ''}<span class="sum ${k}">${esc(txt)}${add}</span>${opt}</td><td class="c-q">${qtyCell(r, ri, on)}</td></tr>`;
       }).join('');
       const nNoDb = o.righe.filter(r => r.codice && !Lib.lookupCode(r.codice)).length;
-      const status = (nNoDb ? `<span class="warn">${nNoDb} ${nNoDb === 1 ? 'codice' : 'codici'} non nel database</span>` : '') + (!on ? '<span class="muted">Escluso dal carico</span>'
+      const nPart = o.righe.filter(r => r.carico != null).length;
+      const status = (nPart ? `<span class="warn">Caricato in parte (${nPart} ${nPart === 1 ? 'riga' : 'righe'}) <button class="link" data-qreset>Ripristina tutto</button></span>` : '') + (nNoDb ? `<span class="warn">${nNoDb} ${nNoDb === 1 ? 'codice' : 'codici'} non nel database</span>` : '') + (!on ? '<span class="muted">Escluso dal carico</span>'
         : out ? `<span class="warn">${tot - out - nG} colli caricati su ${tot}</span>` : nG ? `<span>${tot - nG} caricati, ${nG} a terra</span>` : `<span>${tot} ${tot === 1 ? 'collo' : 'colli'}, tutti caricati</span>`);
       return `<article class="order${on ? '' : ' off'}" data-id="${o.id}">
         <header>
@@ -1707,8 +1728,20 @@ const FIREBASE_DOC = 'carico-camion/database';
 
   /* ---------- Ordini: azioni ---------- */
   $('#orders').addEventListener('click', e => {
+    const qb = e.target.closest('[data-qall],[data-qzero],[data-qreset]');
+    if (qb) {
+      const o = S.orders.find(o => o.id === +qb.closest('.order').dataset.id); if (!o) return;
+      if (qb.dataset.qreset !== undefined) o.righe.forEach(r => { delete r.carico; });
+      else if (qb.dataset.qall !== undefined) delete o.righe[+qb.dataset.qall].carico;
+      else o.righe[+qb.dataset.qzero].carico = 0;
+      recompute(); return;
+    }
     const nb = e.target.closest('[data-newcode]');
-    if (nb) { openNew({ codes: nb.dataset.newcode, name: nb.dataset.newdesc, tipo: /^(PZ|NR|N|CAD)\.?$/i.test(nb.dataset.newum) ? 'collo' : 'rotolo' }); return; }
+    if (nb) {
+      const d = nb.dataset, collo = /^(PZ|NR|N|CAD)\.?$/i.test(d.newum) && !d.newkey;
+      openNew({ codes: d.newcode, name: d.newdesc, tipo: collo ? 'collo' : (d.newtipo === 'barra' ? 'barra' : 'rotolo'), copyKey: d.newkey || undefined, famId: d.newfam || undefined });
+      return;
+    }
     const b = e.target.closest('[data-act]'); if (!b) return;
     const act = b.dataset.act;
     if (act === 'demo') { addDemo(); return; }
@@ -1725,6 +1758,10 @@ const FIREBASE_DOC = 'carico-camion/database';
     if (e.target.dataset.opt) {
       const o = S.orders.find(o => o.id === +e.target.closest('.order').dataset.id), r = o && o.righe[+e.target.dataset.ri]; if (!r) return;
       if (e.target.dataset.opt === 'nest') { const v = e.target.value; if (v === '') delete r.nest; else r.nest = v === 'no' ? 'no' : +v; }
+      else if (e.target.dataset.opt === 'qta') {
+        const v = parseFloat(String(e.target.value).replace(',', '.'));
+        if (isNaN(v) || v >= r.qta) delete r.carico; else r.carico = Math.max(0, v);
+      }
       else { const v = Math.round(parseFloat(e.target.value)); if (v > 0) r.perRow = v; else delete r.perRow; }
       recompute(); return;
     }
@@ -2139,12 +2176,32 @@ const FIREBASE_DOC = 'carico-camion/database';
     const d = dimsOf(k), p = Lib.parseKey(k), pr = prov(k), st = { ok: 'confermate', part: 'parziali', stima: 'stimate' }[pr.status];
     return p.t === 'B' ? `Ø ${fmt(d.od, 1)} mm, ${d.cap || Lib.palletGeom(d).cap} barre per bancale, bancale largo ${fmt(d.palW)} m. Misure ${st}.` : `Ø ${fmt(d.D)} m, foro ${fmt(d.dInt)} m, altezza ${fmt(d.Wd)} m. Misure ${st}.`;
   }
+  // colori dell'articolo: partono da quelli della famiglia scelta; se li cambi diventa una variante con le stesse misure
+  let colBase = null;
+  const colNow = () => ({ out: $('#nColOut').value.toLowerCase(), inn: $('#nColInn').value.toLowerCase(), asp: $('#nAsp').value, stripe: $('#nAsp').value === 'riga' ? $('#nColStripe').value.toLowerCase() : '', pe: $('#nPe').checked });
+  const colChanged = () => !!colBase && JSON.stringify(colNow()) !== JSON.stringify(colBase);
+  const hex6 = c => { try { return '#' + new THREE.Color(c).getHexString(); } catch (e) { return '#808080'; } };
+  function fillColors() {
+    const id = $('#nFam').value, F = Lib.FAM[id];
+    if (!F || id === '__new') { colBase = null; return; }
+    $('#nColOut').value = hex6(F.out); $('#nColInn').value = hex6(F.inn || F.out);
+    $('#nAsp').value = F.corr ? 'corrugato' : F.stripe ? 'riga' : 'liscio';
+    if (F.stripe) $('#nColStripe').value = hex6(F.stripe);
+    $('#nPe').checked = !!F.pe;
+    colBase = colNow();
+  }
   function syncForm() {
     const tipo = nTipo(), copy = $('#nCopy').value;
     $('#nHint').textContent = NEW_HINT[tipo];
     $('#nPipeBox').hidden = tipo === 'collo'; $('#nBoxBox').hidden = tipo !== 'collo';
     $('#nNameW').hidden = tipo !== 'collo';
-    $('#nFamNew').hidden = $('#nFam').value !== '__new';
+    const isNew = $('#nFam').value === '__new', varnt = !isNew && colChanged(), F = Lib.FAM[$('#nFam').value];
+    $('#nFamNew').hidden = !isNew && !varnt;
+    $('#nFamNameLab').textContent = varnt ? 'Nome dei nuovi colori (facoltativo)' : 'Nome della famiglia';
+    $('#nFamName').placeholder = varnt && F ? `es. ${F.n} verde` : '';
+    $('#nColHint').textContent = isNew ? 'Colori della nuova famiglia.' : varnt
+      ? `Colori cambiati: l’articolo avrà le misure scelte e questi colori, senza toccare «${F ? F.n : ''}».`
+      : `Colori di «${F ? F.n : ''}». Se li cambi, l’articolo resta identico nelle misure ma con colori suoi.`;
     $('#nStripeW').hidden = $('#nAsp').value !== 'riga';
     $('#nPeW').hidden = tipo !== 'rotolo';
     $('#nMeasures').hidden = !!copy; $('#nRoll').hidden = tipo !== 'rotolo'; $('#nBar').hidden = tipo !== 'barra';
@@ -2161,13 +2218,15 @@ const FIREBASE_DOC = 'carico-camion/database';
     $('#nUnit').value = pre.unit || 'PZ'; $('#nPer').value = pre.per || ''; $('#nL').value = pre.L || '1.2'; $('#nW').value = pre.W || '0.8'; $('#nH').value = pre.H || ''; $('#nStack').checked = true; $('#nColor').value = '#b9a07a';
     fillCopy(tipo, pre.copyKey);
     const fi = pre.copyKey ? famIndex()[pre.copyKey] : null;
-    fillFam(pre.famId || (fi && [...fi][0]));
+    fillFam(pre.famId || (fi && [...fi][0])); fillColors();
     $('#newT').textContent = tipo === 'collo' ? 'Nuovo bancale o collo a misura' : 'Nuovo articolo';
     syncForm(); newDlg.showModal(); setTimeout(() => $('#nCodes').focus(), 30);
   }
-  document.querySelectorAll('input[name=ntipo]').forEach(r => r.addEventListener('change', () => { const f = $('#nFam').value; fillCopy(nTipo()); fillFam(f); syncForm(); }));
-  $('#nFam').addEventListener('change', syncForm); $('#nAsp').addEventListener('change', syncForm);
-  $('#nCopy').addEventListener('change', () => { const k = $('#nCopy').value; if (k) { const fi = famIndex()[k]; if (fi) fillFam([...fi][0]); } syncForm(); });
+  document.querySelectorAll('input[name=ntipo]').forEach(r => r.addEventListener('change', () => { const f = $('#nFam').value; fillCopy(nTipo()); fillFam(f); fillColors(); syncForm(); }));
+  $('#nFam').addEventListener('change', () => { fillColors(); syncForm(); }); $('#nAsp').addEventListener('change', syncForm);
+  ['nColOut', 'nColInn', 'nColStripe', 'nPe'].forEach(id => $('#' + id).addEventListener('input', syncForm));
+  $('#nPe').addEventListener('change', syncForm);
+  $('#nCopy').addEventListener('change', () => { const k = $('#nCopy').value; if (k) { const fi = famIndex()[k]; if (fi) { fillFam([...fi][0]); fillColors(); } } syncForm(); });
   newDlg.addEventListener('click', e => { if (e.target === newDlg || e.target.closest('[data-nclose]')) newDlg.close(); });
   $('#btnNew').addEventListener('click', () => openNew({ tipo: { B: 'barra', P: 'collo', R: 'rotolo' }[dbT] }));
   $('#newSave').addEventListener('click', saveNew);
@@ -2210,10 +2269,12 @@ const FIREBASE_DOC = 'carico-camion/database';
       }
       if (newFam && !$('#nFamName').value.trim()) return err('Dai un nome alla nuova famiglia.');
       let famId, fg;
-      if (newFam) {
+      const variant = !newFam && colChanged(), baseId = $('#nFam').value, base = Lib.FAM[baseId];
+      if (newFam || variant) {
         const asp = $('#nAsp').value;
-        famId = 'U' + nid(); fg = copy ? Lib.parseKey(copy).fg : famId;
-        S.custom.fams[famId] = { n: $('#nFamName').value.trim(), out: $('#nColOut').value, inn: $('#nColInn').value, stripe: asp === 'riga' ? $('#nColStripe').value : null, corr: asp === 'corrugato', pe: tipo === 'rotolo' && $('#nPe').checked, bell: !!(dims && dims.bellL), fg, own: !copy };
+        famId = 'U' + nid(); fg = copy ? Lib.parseKey(copy).fg : variant ? (Lib.FG_OF[baseId] || 'PE') : famId;
+        const nome = $('#nFamName').value.trim() || (variant ? `${base.n} (${codes[0]})` : '');
+        S.custom.fams[famId] = { n: nome, out: $('#nColOut').value, inn: $('#nColInn').value, stripe: asp === 'riga' ? $('#nColStripe').value : null, corr: asp === 'corrugato', pe: tipo === 'rotolo' && $('#nPe').checked, bell: variant ? !!base.bell : !!(dims && dims.bellL), fg, own: newFam && !copy };
       } else { famId = $('#nFam').value; fg = copy ? Lib.parseKey(copy).fg : (Lib.FG_OF[famId] || 'PE'); }
       if (t === 'B' && fg === 'PEBD') fg = 'PE';
       key = copy || `${t}|${fg}|${dn}|${len}`;
