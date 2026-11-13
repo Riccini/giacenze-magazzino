@@ -424,6 +424,8 @@ body.drag .veil{display:grid}
 
       <div class="full" id="nPipeBox">
         <div class="fgrid">
+          <label class="fld full">Copia le misure dal codice <small>scrivi il codice dell’articolo uguale nelle dimensioni: copio solo le misure, i colori li scegli sotto</small><input id="nCopyCode" type="text" list="codeList" autocomplete="off" placeholder="es. 544006S8"></label>
+          <p class="full copyinfo" id="nCopyCodeInfo" hidden></p>
           <label class="fld full">Usa le misure di <select id="nCopy"></select></label>
           <label class="fld full">Famiglia
             <select id="nFam"></select></label>
@@ -2208,6 +2210,24 @@ const FIREBASE_DOC = 'carico-camion/database';
     const ci = $('#nCopyInfo'); ci.hidden = !copy; if (copy) ci.textContent = `Il codice userà le misure di «${Lib.keyLabel(copy)}»: ${copyInfo(copy)}`;
     $('#nCodes').placeholder = tipo === 'collo' ? 'es. 1081, 1081V' : 'es. 19P250, 19P250M';
   }
+  // copia delle misure partendo da un codice già nel database
+  function applyCopyCode(code, auto) {
+    const info = $('#nCopyCodeInfo'), c = String(code || '').trim().toUpperCase();
+    if (!c) { info.hidden = true; return false; }
+    const a = Lib.lookupCode(c);
+    if (!a || a.tipo === 'collo') { info.hidden = auto; info.className = 'full copyinfo warn'; info.textContent = `Il codice ${c} non è nel database (o è un bancale a misura).`; return false; }
+    const tipo = a.tipo === 'barra' ? 'barra' : 'rotolo';
+    document.querySelector(`input[name=ntipo][value=${tipo}]`).checked = true;
+    fillCopy(tipo, a.key);
+    if ($('#nCopy').value !== a.key) { $('#nCopy').insertAdjacentHTML('beforeend', `<option value="${esc(a.key)}">${esc(Lib.keyLabel(a.key))}</option>`); $('#nCopy').value = a.key; }
+    fillFam(a.fam); fillColors();
+    $('#nCopyCode').value = c;
+    info.hidden = false; info.className = 'full copyinfo';
+    info.textContent = `${auto ? 'Proposto dal codice simile ' + c : 'Misure di ' + c}: ${famOf(a.fam).n}, ${Lib.keyLabel(a.key)}. Controlla la famiglia e i colori qui sotto.`;
+    syncForm(); return true;
+  }
+  $('#nCopyCode').addEventListener('input', e => { refreshCodeList(e.target.value); if (Lib.lookupCode(e.target.value)) applyCopyCode(e.target.value); });
+  $('#nCopyCode').addEventListener('change', e => applyCopyCode(e.target.value));
   function openNew(pre = {}) {
     newPre = pre; $('#nErr').hidden = true;
     const tipo = pre.tipo || 'rotolo';
@@ -2219,14 +2239,20 @@ const FIREBASE_DOC = 'carico-camion/database';
     fillCopy(tipo, pre.copyKey);
     const fi = pre.copyKey ? famIndex()[pre.copyKey] : null;
     fillFam(pre.famId || (fi && [...fi][0])); fillColors();
+    $('#nCopyCode').value = ''; $('#nCopyCodeInfo').hidden = true;
     $('#newT').textContent = tipo === 'collo' ? 'Nuovo bancale o collo a misura' : 'Nuovo articolo';
+    // codice nuovo non riconosciuto: provo il codice "padre" togliendo le lettere finali (es. 544006S8MR → 544006S8)
+    if (!pre.copyKey && pre.codes && tipo !== 'collo') {
+      const c0 = String(pre.codes).trim().toUpperCase();
+      for (let n = c0.length - 1; n >= 4; n--) { const c = c0.slice(0, n).replace(/[.\s]+$/, ''); if (c && Lib.lookupCode(c) && Lib.lookupCode(c).tipo !== 'collo') { applyCopyCode(c, true); break; } }
+    }
     syncForm(); newDlg.showModal(); setTimeout(() => $('#nCodes').focus(), 30);
   }
   document.querySelectorAll('input[name=ntipo]').forEach(r => r.addEventListener('change', () => { const f = $('#nFam').value; fillCopy(nTipo()); fillFam(f); fillColors(); syncForm(); }));
   $('#nFam').addEventListener('change', () => { fillColors(); syncForm(); }); $('#nAsp').addEventListener('change', syncForm);
   ['nColOut', 'nColInn', 'nColStripe', 'nPe'].forEach(id => $('#' + id).addEventListener('input', syncForm));
   $('#nPe').addEventListener('change', syncForm);
-  $('#nCopy').addEventListener('change', () => { const k = $('#nCopy').value; if (k) { const fi = famIndex()[k]; if (fi) { fillFam([...fi][0]); fillColors(); } } syncForm(); });
+  $('#nCopy').addEventListener('change', () => { $('#nCopyCode').value = ''; $('#nCopyCodeInfo').hidden = true; const k = $('#nCopy').value; if (k) { const fi = famIndex()[k]; if (fi) { fillFam([...fi][0]); fillColors(); } } syncForm(); });
   newDlg.addEventListener('click', e => { if (e.target === newDlg || e.target.closest('[data-nclose]')) newDlg.close(); });
   $('#btnNew').addEventListener('click', () => openNew({ tipo: { B: 'barra', P: 'collo', R: 'rotolo' }[dbT] }));
   $('#newSave').addEventListener('click', saveNew);
