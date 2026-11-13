@@ -33,8 +33,11 @@ jobs:
           for i in 1 2 3 4 5; do
             python aggiorna_giacenze.py
             python aggiorna_monitor_produzione.py
+            # ordini aperti per il piano di carico: se fallisce, le altre pagine si pubblicano lo stesso
+            python genera_ordini_json.py || echo "ordini.json non generato"
 
             git add index.html monitor_produzione.html verifica_disponibilita.html
+            if [ -f ordini.json ]; then git add ordini.json; fi
             git commit -m "Aggiornamento giacenze $(date '+%d/%m/%Y %H:%M')" || echo "Nessuna modifica da salvare"
 
             if git push; then
