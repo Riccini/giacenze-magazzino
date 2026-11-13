@@ -280,6 +280,10 @@ body.drag .veil{display:grid}
 .qin input{width:72px; text-align:right; background:var(--card); border:1px solid var(--line); border-radius:5px; padding:3px 5px; color:var(--ink); font-size:12.5px}
 .qord{display:block; font-size:11.5px; color:var(--muted)} .qord.part{color:var(--warn); font-weight:600}
 .c-q .link{font-size:11.5px}
+.order.joined{margin-left:18px; border-left:3px solid var(--line)}
+.o-join{font-size:12.5px; color:var(--muted); margin-top:6px; display:flex; flex-wrap:wrap; gap:4px 10px; align-items:center}
+.o-join label{display:flex; align-items:center; gap:6px}
+.o-join select{background:var(--card); border:1px solid var(--line); border-radius:5px; padding:3px 6px; color:var(--ink); font-size:12.5px; max-width:230px}
 .pf-st{font-size:13px; color:var(--muted); margin:0 0 8px}
 .pf-row{display:flex; gap:10px; align-items:flex-end}
 .pf-row .fld{flex:1}
@@ -1555,8 +1559,35 @@ const FIREBASE_DOC = 'carico-camion/database';
   const famOf = f => Lib.FAM[f] || Lib.FAM.POLIER;
 
   /* ---------- Calcolo ---------- */
+  /* ---------- Scarichi: più ordini dello stesso cliente con un solo scarico ---------- */
+  // o.with = id dell'ordine capofila dello scarico; il capofila non ha with
+  function stops() {
+    const byId = new Map(S.orders.map(o => [o.id, o]));
+    S.orders.forEach(o => { if (o.with != null) { const l = byId.get(o.with); if (!l || l === o) delete o.with; else if (l.with != null) o.with = l.with; } });
+    S.orders.forEach(o => { if (o.with != null) { const l = byId.get(o.with); if (!l || l.with != null) delete o.with; } });
+    const out = S.orders.filter(o => o.with == null).map(l => ({ lead: l, list: [l] })), idx = new Map(out.map(b => [b.lead.id, b]));
+    S.orders.forEach(o => { if (o.with != null) idx.get(o.with).list.push(o); });
+    return out;
+  }
+  const stopOf = o => stops().find(b => b.list.includes(o));
+  const nestRef = (r, oid) => r.nest === undefined || r.nest === 'no' ? r.nest : typeof r.nest === 'number' ? `${oid}:${r.nest}` : String(r.nest);
   function recompute() {
-    const active = S.orders.filter(o => o.on !== false).map(o => ({ ...o, seq: S.orders.indexOf(o) + 1 }));
+    const bl = stops(); S.orders = bl.flatMap(b => b.list);
+    const vmap = new Map(), active = [];
+    bl.forEach((b, bi) => {
+      const on = b.list.filter(o => o.on !== false); if (!on.length) return;
+      const map = [], righe = [];
+      on.forEach(o => o.righe.forEach((r, ri) => { map.push([o.id, ri]); righe.push(r); }));
+      const pos = new Map(map.map(([oid, ri], k) => [`${oid}:${ri}`, k]));
+      // riga da infilare: riferimento ordine:riga tradotto nella posizione dentro lo scarico
+      const rr = righe.map((r, k) => {
+        const ref = nestRef(r, map[k][0]);
+        if (ref === undefined || ref === 'no') return r;
+        return { ...r, nest: pos.has(ref) ? pos.get(ref) : undefined };
+      });
+      vmap.set(b.lead.id, map);
+      active.push({ ...b.lead, righe: rr, seq: bi + 1 });
+    });
     const vani = S.cfg.vani.map((L, i) => ({ L, W: S.cfg.W, H: S.cfg.H, nome: S.cfg.vani.length > 1 ? (i ? 'Rimorchio' : 'Motrice') : '' }));
     S.orders.forEach(o => o.righe.forEach(r => {
       const c = Lib.classify(r.desc, r.um, r.codice);
@@ -1565,6 +1596,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     // quantità scelta da caricare (se cambiata) al posto di quella ordinata
     const activeQ = active.map(o => ({ ...o, righe: o.righe.map(r => r.carico == null ? r : { ...r, qta: r.carico, bancali: null }) }));
     const { items, info } = Lib.buildItems(activeQ, S.dims, { truckW: S.cfg.W, nestBars: S.cfg.nestBars, nestRolls: S.cfg.nestRolls, mixPal: S.cfg.mixPal });
+    info.forEach(rec => { const m = (vmap.get(rec.orderId) || [])[rec.riga]; rec.vriga = rec.riga; if (m) { rec.srcOrder = m[0]; rec.riga = m[1]; } else rec.srcOrder = rec.orderId; });
     // firma stabile di ogni collo, per ricordare quelli spostati a mano
     const occ = new Map(), fixed = new Map();
     items.forEach(it => {
@@ -1626,8 +1658,14 @@ const FIREBASE_DOC = 'carico-camion/database';
       return;
     }
     const openIds = new Set([...box.querySelectorAll('.order')].filter(a => a.querySelector('details[open]')).map(a => a.dataset.id));
+    const bl = stops(), stopN = new Map(), leadOfId = new Map();
+    bl.forEach((b, bi) => b.list.forEach(o => { stopN.set(o.id, bi); leadOfId.set(o.id, b.lead); }));
+    const sameCli = (a, b) => (a.codCliente && a.codCliente === b.codCliente && a.codCliente !== 'MAN') || (a.cliente && b.cliente && a.cliente.trim().toUpperCase() === b.cliente.trim().toUpperCase());
     box.innerHTML = S.orders.map((o, i) => {
-      const recs = P.info.filter(r => r.orderId === o.id);
+      const recs = P.info.filter(r => r.srcOrder === o.id);
+      const lead = leadOfId.get(o.id), member = lead !== o, bi = stopN.get(o.id), stop = bl[bi];
+      const grp = P.info.filter(r => r.orderId === lead.id);
+      const oName = id => { const x = S.orders.find(q => q.id === id); return x ? (x.numero ? `ord. ${x.numero}` : x.cliente) : ''; };
       const on = o.on !== false;
       const ids = new Set(recs.flatMap(r => r.ids));
       const tot = ids.size, nG = [...ids].filter(id => P.groundIds.has(id)).length, out = [...ids].filter(id => !P.placedIds.has(id) && !P.groundIds.has(id)).length;
@@ -1641,10 +1679,11 @@ const FIREBASE_DOC = 'carico-camion/database';
         let opt = '';
         if (on && rec && rec.cls.tipo === 'barra' && rec.nPezzi) {
           const me = dimsOf(rec.cls.key);
-          const hosts = recs.filter(h => h.riga !== ri && h.cls.tipo === 'barra' && h.nPezzi && h.cls.len + 0.01 >= rec.cls.len && dimsOf(h.cls.key).idm > me.od + 1);
-          if (hosts.length || r.nest !== undefined || Lib.noNestDefault(rec.cls.key)) opt += `<label>Infila dentro <select data-opt="nest" data-ri="${ri}"><option value="">${Lib.noNestDefault(rec.cls.key) ? 'Non infilare (regola di base)' : S.cfg.nestBars ? 'Automatico' : 'No (automatico spento)'}</option><option value="no"${r.nest === 'no' ? ' selected' : ''}>Non infilare</option>${hosts.map(h => { const kk = Lib.circlesIn(dimsOf(h.cls.key).idm / me.od); return `<option value="${h.riga}"${r.nest === h.riga ? ' selected' : ''}>${esc(famOf(h.cls.fam).n)} DN ${h.cls.dn} (${kk} per barra)</option>`; }).join('')}</select></label>`;
+          const hosts = grp.filter(h => h !== rec && h.cls.tipo === 'barra' && h.nPezzi && h.cls.len + 0.01 >= rec.cls.len && dimsOf(h.cls.key).idm > me.od + 1);
+          const myRef = nestRef(r, o.id);
+          if (hosts.length || r.nest !== undefined || Lib.noNestDefault(rec.cls.key)) opt += `<label>Infila dentro <select data-opt="nest" data-ri="${ri}"><option value="">${Lib.noNestDefault(rec.cls.key) ? 'Non infilare (regola di base)' : S.cfg.nestBars ? 'Automatico' : 'No (automatico spento)'}</option><option value="no"${r.nest === 'no' ? ' selected' : ''}>Non infilare</option>${hosts.map(h => { const kk = Lib.circlesIn(dimsOf(h.cls.key).idm / me.od), ref = `${h.srcOrder}:${h.riga}`; return `<option value="${ref}"${myRef === ref ? ' selected' : ''}>${esc(famOf(h.cls.fam).n)} DN ${h.cls.dn} (${kk} per barra)${h.srcOrder !== o.id ? ' – ' + esc(oName(h.srcOrder)) : ''}</option>`; }).join('')}</select></label>`;
           if (rec.small) opt += `<label>Bancale ridotto da ${rec.small.n}: barre per fila <input type="number" min="1" step="1" inputmode="numeric" data-opt="perRow" data-ri="${ri}" value="${r.perRow > 0 ? r.perRow : ''}" placeholder="${rec.small.auto}"></label>`;
-          if (!hosts.length && r.nest === undefined && !rec.nNested && recs.filter(h => h.cls.tipo === 'barra' && h.nPezzi).length > 1) opt += '<span>Non si può infilare: nello stesso ordine serve una barra più grande e lunga almeno quanto questa.</span>';
+          if (!hosts.length && r.nest === undefined && !rec.nNested && grp.filter(h => h.cls.tipo === 'barra' && h.nPezzi).length > 1) opt += '<span>Non si può infilare: nello stesso scarico serve una barra più grande e lunga almeno quanto questa.</span>';
           if (opt) opt = `<div class="lopt">${opt}</div>`;
         }
         return `<tr><td class="c-cod">${esc(r.codice)}</td><td>${esc(r.desc)}${noDb ? '<span class="nodb">Codice non nel database</span>' : ''}<span class="sum ${k}">${esc(txt)}${add}</span>${opt}</td><td class="c-q">${qtyCell(r, ri, on)}</td></tr>`;
@@ -1653,26 +1692,35 @@ const FIREBASE_DOC = 'carico-camion/database';
       const nPart = o.righe.filter(r => r.carico != null).length;
       const status = (nPart ? `<span class="warn">Caricato in parte (${nPart} ${nPart === 1 ? 'riga' : 'righe'}) <button class="link" data-qreset>Ripristina tutto</button></span>` : '') + (nNoDb ? `<span class="warn">${nNoDb} ${nNoDb === 1 ? 'codice' : 'codici'} non nel database</span>` : '') + (!on ? '<span class="muted">Escluso dal carico</span>'
         : out ? `<span class="warn">${tot - out - nG} colli caricati su ${tot}</span>` : nG ? `<span>${tot - nG} caricati, ${nG} a terra</span>` : `<span>${tot} ${tot === 1 ? 'collo' : 'colli'}, tutti caricati</span>`);
-      return `<article class="order${on ? '' : ' off'}" data-id="${o.id}">
+      // unione con un altro scarico: solo per ordini senza altri ordini agganciati
+      const others = bl.filter(b => b !== stop);
+      const sugg = !member && stop.list.length === 1 ? others.find(b => b.list.some(x => sameCli(x, o))) : null;
+      let join = '';
+      if (member) join = `<div class="o-join">Stesso scarico di <b>${esc(lead.cliente || '')}${lead.numero ? ' – ordine ' + esc(lead.numero) : ''}</b> <button class="link" data-split>Scarico separato</button></div>`;
+      else if (stop.list.length > 1) join = `<div class="o-join"><b>${stop.list.length} ordini in questo scarico</b>: si caricano insieme e possono stare negli stessi bancali.</div>`;
+      else if (others.length) join = `<div class="o-join"><label>Scarico unico con <select data-join><option value="">nessuno (scarico a sé)</option>${others.map(b => `<option value="${b.lead.id}">${bl.indexOf(b) + 1}° ${esc(b.lead.cliente || b.lead.file || '')}${b.lead.numero ? ' – ord. ' + esc(b.lead.numero) : ''}</option>`).join('')}</select></label>${sugg ? ` <button class="link" data-joinsugg="${sugg.lead.id}">Unisci a ${esc(oName(sugg.lead.id))}: stesso cliente</button>` : ''}</div>`;
+      const firstStop = bi === 0, lastStop = bi === bl.length - 1;
+      return `<article class="order${on ? '' : ' off'}${member ? ' joined' : ''}" data-id="${o.id}">
         <header>
-          <span class="seq" style="--c:${o.color}" title="Ordine di scarico">${i + 1}°</span>
+          <span class="seq" style="--c:${lead.color}" title="Scarico">${member ? '↳' : bi + 1 + '°'}</span>
           <div class="o-name"><strong>${esc(o.cliente || o.file)}</strong>
             <span>${esc([o.citta && `${o.citta}${o.prov ? ' (' + o.prov + ')' : ''}`, o.numero && `ordine ${o.numero}${o.data ? ' del ' + o.data : ''}`, o.fonte === 'portafoglio' && 'dal portafoglio', o.manual && 'inserito a mano'].filter(Boolean).join(', '))}</span></div>
           <div class="o-btn">
             ${o.manual ? '<button data-act="edit" aria-label="Modifica ordine" title="Modifica ordine">✎</button>' : ''}
-            <button data-act="up" aria-label="Scarica prima" title="Scarica prima" ${i === 0 ? 'disabled' : ''}>▲</button>
-            <button data-act="down" aria-label="Scarica dopo" title="Scarica dopo" ${i === S.orders.length - 1 ? 'disabled' : ''}>▼</button>
+            ${member ? '' : `<button data-act="up" aria-label="Scarica prima" title="Scarica prima" ${firstStop ? 'disabled' : ''}>▲</button>
+            <button data-act="down" aria-label="Scarica dopo" title="Scarica dopo" ${lastStop ? 'disabled' : ''}>▼</button>`}
             <button data-act="del" aria-label="Togli ordine" title="Togli ordine">✕</button>
           </div>
         </header>
         <div class="o-meta"><label class="chk"><input type="checkbox" data-act="on" ${on ? 'checked' : ''}> In questo carico</label>${status}</div>
+        ${join}
         <details${openIds.has(String(o.id)) ? ' open' : ''}><summary>${o.righe.length} righe d’ordine</summary>
           <table class="lines"><tbody>${rows}</tbody></table>
           ${o.destNote ? `<p class="note"><b>Destinazione:</b> ${esc(o.destNote)}</p>` : ''}
           ${o.note && o.note.length ? `<p class="note"><b>Note dell’ordine:</b> ${esc(o.note.join(' '))}</p>` : ''}
         </details>
       </article>`;
-    }).join('') + `<p class="hint">Il 1° scarico viene caricato per ultimo e resta verso le porte. Usa le frecce per cambiare la sequenza.</p>`;
+    }).join('') + `<p class="hint">Il 1° scarico viene caricato per ultimo e resta verso le porte. Usa le frecce per cambiare la sequenza. Più ordini con «Scarico unico» si scaricano insieme.</p>`;
   }
   const volP = p => p.shape === 'cyl' ? Math.PI * p.r * p.r * p.h : p.o === 'bar' ? p.lx * p.lz * p.h : Math.PI * (p.h / 2) * (p.h / 2) * (p.o === 'standX' ? p.lx : p.lz);
   function renderStats() {
@@ -1730,6 +1778,12 @@ const FIREBASE_DOC = 'carico-camion/database';
 
   /* ---------- Ordini: azioni ---------- */
   $('#orders').addEventListener('click', e => {
+    const jb = e.target.closest('[data-split],[data-joinsugg]');
+    if (jb) {
+      const o = S.orders.find(o => o.id === +jb.closest('.order').dataset.id); if (!o) return;
+      if (jb.dataset.split !== undefined) delete o.with; else o.with = +jb.dataset.joinsugg;
+      recompute(); return;
+    }
     const qb = e.target.closest('[data-qall],[data-qzero],[data-qreset]');
     if (qb) {
       const o = S.orders.find(o => o.id === +qb.closest('.order').dataset.id); if (!o) return;
@@ -1750,16 +1804,29 @@ const FIREBASE_DOC = 'carico-camion/database';
     if (act === 'on') return;
     const art = b.closest('.order'); const i = S.orders.findIndex(o => o.id === +art.dataset.id);
     if (act === 'edit') { openManual(S.orders[i]); return; }
-    if (act === 'up' && i > 0) [S.orders[i - 1], S.orders[i]] = [S.orders[i], S.orders[i - 1]];
-    else if (act === 'down' && i < S.orders.length - 1) [S.orders[i + 1], S.orders[i]] = [S.orders[i], S.orders[i + 1]];
-    else if (act === 'del') S.orders.splice(i, 1);
+    if (act === 'up' || act === 'down') {
+      const bl = stops(), k = bl.findIndex(b => b.list.includes(S.orders[i])), j = act === 'up' ? k - 1 : k + 1;
+      if (k < 0 || j < 0 || j >= bl.length) return;
+      [bl[k], bl[j]] = [bl[j], bl[k]]; S.orders = bl.flatMap(b => b.list);
+    }
+    else if (act === 'del') {
+      const gone = S.orders[i]; S.orders.splice(i, 1);
+      // se era il capofila, il primo degli altri ordini dello scarico ne prende il posto
+      const rest = S.orders.filter(o => o.with === gone.id);
+      if (rest.length) { delete rest[0].with; rest.slice(1).forEach(o => { o.with = rest[0].id; }); }
+    }
     else return;
     recompute();
   });
   $('#orders').addEventListener('change', e => {
+    if (e.target.dataset.join !== undefined) {
+      const o = S.orders.find(o => o.id === +e.target.closest('.order').dataset.id); if (!o) return;
+      if (e.target.value) o.with = +e.target.value; else delete o.with;
+      recompute(); return;
+    }
     if (e.target.dataset.opt) {
       const o = S.orders.find(o => o.id === +e.target.closest('.order').dataset.id), r = o && o.righe[+e.target.dataset.ri]; if (!r) return;
-      if (e.target.dataset.opt === 'nest') { const v = e.target.value; if (v === '') delete r.nest; else r.nest = v === 'no' ? 'no' : +v; }
+      if (e.target.dataset.opt === 'nest') { const v = e.target.value; if (v === '') delete r.nest; else r.nest = v === 'no' ? 'no' : v; }
       else if (e.target.dataset.opt === 'qta') {
         const v = parseFloat(String(e.target.value).replace(',', '.'));
         if (isNaN(v) || v >= r.qta) delete r.carico; else r.carico = Math.max(0, v);
