@@ -942,33 +942,60 @@ const Lib = (() => {
   const W0 = { b: WOOD_B, t: WOOD_T, s: POST };
   const woodOf = dm => ({ b: (dm && dm.legB > 0 ? dm.legB : WOOD_DEF.b) / 100, t: (dm && dm.legT > 0 ? dm.legT : WOOD_DEF.t) / 100, s: (dm && dm.legS > 0 ? dm.legS : WOOD_DEF.s) / 100 });
   const woodMax = list => list.reduce((a, w) => ({ b: Math.max(a.b, w.b), t: Math.max(a.t, w.t), s: Math.max(a.s, w.s) }), { b: 0, t: 0, s: 0 });
+  // file sfalsate: ogni fila è spostata di mezzo tubo rispetto a quella sotto, così i tubi si alloggiano negli incavi.
+  // Dalla composizione (barre per fila, dal basso) ricava quante barre ha ogni fila e di quanto è spostata (in diametri).
+  function rowPlan(rows, total) {
+    const ns = [];
+    for (let i = 0, r = 0; i < total; r++) { const n = Math.max(1, Math.min(rows[Math.min(r, rows.length - 1)], total - i)); ns.push(n); i += n; }
+    let best = null;
+    for (const s0 of [0, -0.25, 0.25]) {
+      const sh = [s0]; let ph = s0 + (ns[0] - 1) / 2;
+      for (let r = 1; r < ns.length; r++) {
+        let v = (ph + 0.5 - (ns[r] - 1) / 2) % 1; if (v > 0.5 + 1e-9) v -= 1; if (v <= -0.5 + 1e-9) v += 1;
+        if (Math.abs(Math.abs(v) - 0.5) < 1e-9) v = sh[r - 1] > 0 ? -0.5 : 0.5;
+        sh.push(v); ph = v + (ns[r] - 1) / 2;
+      }
+      const ext = Math.max(...ns.map((n, r) => n + 2 * Math.abs(sh[r]))), sum = sh.reduce((x, v) => x + Math.abs(v), 0);
+      if (!best || ext < best.ext - 1e-9 || (Math.abs(ext - best.ext) < 1e-9 && sum < best.sum - 1e-9)) best = { ns, sh, ext, sum };
+    }
+    return best;
+  }
+  // larghezza occupata dalle barre di una composizione, in diametri (tiene conto dello sfalsamento)
+  const rowsExt = rows => rowPlan(rows, rows.reduce((x, y) => x + y, 0)).ext;
   function layoutLayers(layers, palW, hex, w = W0) {
     const Wi = palW - 2 * w.s, pos = [];
-    let y = w.b;
+    let top = w.b, below = [], below2 = [];
+    // posa una fila: scende finché i tubi toccano quelli sotto (negli incavi se è sfalsata, uno sull'altro se è allineata)
+    const lay = (zs, d, L, row, take) => {
+      let cy = (below.length ? Math.min(...below.map(q => q.y - q.d / 2)) : w.b) + d / 2;
+      if (!below.length) cy = top + d / 2;
+      for (const z of zs) for (const q of below.concat(below2)) {
+        const R = (d + q.d) / 2, dz = Math.abs(z - q.z);
+        if (dz < R - 1e-9) cy = Math.max(cy, q.y + Math.sqrt(R * R - dz * dz));
+      }
+      below2 = below; below = [];
+      zs.forEach((z, j) => { pos.push({ y: cy, z, p: take(), col: j, row }); below.push({ y: cy, z, d }); });
+      top = Math.max(top, cy + d / 2);
+    };
     for (const L of layers) {
       const d = L.sp, c = L.c > 0 ? L.c : Math.max(1, Math.floor((Wi + 1e-6) / d));
       let row = 0, i = 0;
+      const take = () => L.pieces[i++];
       if (L.rows && L.rows.length) {
-        // composizione scelta a mano: ogni fila ha il suo numero di barre, centrate sul bancale
-        while (i < L.pieces.length) {
-          const n = Math.min(L.rows[Math.min(row, L.rows.length - 1)], L.pieces.length - i), cy = y + d / 2 + row * (hex ? d * 0.866 : d), z0 = -(n * d) / 2 + d / 2;
-          for (let j = 0; j < n; j++) pos.push({ y: cy, z: z0 + j * d, p: L.pieces[i++], col: j, row });
-          row++;
-        }
-        if (row) y += d + (row - 1) * (hex ? d * 0.866 : d);
+        // composizione scelta a mano: ogni fila ha il suo numero di barre, centrata e sfalsata rispetto a quella sotto
+        const pl = rowPlan(L.rows, L.pieces.length);
+        pl.ns.forEach((n, r) => { const z0 = -(n * d) / 2 + d / 2 + pl.sh[r] * d; lay(Array.from({ length: n }, (_, j) => z0 + j * d), d, L, r, take); });
         continue;
       }
       while (i < L.pieces.length) {
         const off = hex && row % 2 === 1 && c > 1 ? d / 2 : 0;
         const capRow = off ? (c * d + d / 2 <= Wi + 1e-6 ? c : c - 1) : c;
-        const cy = y + d / 2 + row * (hex ? d * 0.866 : d);
         const n = Math.min(capRow, L.pieces.length - i), z0 = -Wi / 2 + d / 2 + off;
-        for (let j = 0; j < n; j++) pos.push({ y: cy, z: z0 + j * d, p: L.pieces[i++], col: j, row });
+        lay(Array.from({ length: n }, (_, j) => z0 + j * d), d, L, row, take);
         row++;
       }
-      if (row) y += d + (row - 1) * (hex ? d * 0.866 : d);
     }
-    return { pos, h: y + w.t };
+    return { pos, h: top + w.t };
   }
   const widthFor = (c, sp, w = W0) => Math.ceil((c * sp + 2 * w.s) * 100 - 1e-6) / 100;
   // barre per fila del bancale pieno: quelle indicate, altrimenti quante ne stanno nella larghezza
@@ -992,7 +1019,7 @@ const Lib = (() => {
   /* ---------- 8. Dalle righe d'ordine ai colli ---------- */
   function dimsFor(key, dims) {
     const o = dims[key] || {}, d = { ...defaultDims(key), ...o };
-    if (key[0] === 'B' && d.rows && d.rows.length) { const od = d.od / 1000, sp = d.bellL > 0 ? od * 1.03 : od; d.cap = d.rows.reduce((a, b) => a + b, 0); d.perRow = Math.max(...d.rows); d.palW = Math.max(o.palW || 0, widthFor(d.perRow, sp, woodOf(d))); }
+    if (key[0] === 'B' && d.rows && d.rows.length) { const od = d.od / 1000, sp = d.bellL > 0 ? od * 1.03 : od; d.cap = d.rows.reduce((a, b) => a + b, 0); d.perRow = Math.max(...d.rows); d.palW = Math.max(o.palW || 0, widthFor(rowsExt(d.rows), sp, woodOf(d))); }
     else if (key[0] === 'B' && d.perRow > 0) { const od = d.od / 1000; d.palW = Math.max(o.palW || 0, widthFor(Math.round(d.perRow), d.bellL > 0 ? od * 1.03 : od, woodOf(d))); }
     return d;
   }
