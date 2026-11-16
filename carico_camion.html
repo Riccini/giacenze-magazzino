@@ -942,23 +942,12 @@ const Lib = (() => {
   const W0 = { b: WOOD_B, t: WOOD_T, s: POST };
   const woodOf = dm => ({ b: (dm && dm.legB > 0 ? dm.legB : WOOD_DEF.b) / 100, t: (dm && dm.legT > 0 ? dm.legT : WOOD_DEF.t) / 100, s: (dm && dm.legS > 0 ? dm.legS : WOOD_DEF.s) / 100 });
   const woodMax = list => list.reduce((a, w) => ({ b: Math.max(a.b, w.b), t: Math.max(a.t, w.t), s: Math.max(a.s, w.s) }), { b: 0, t: 0, s: 0 });
-  // file sfalsate: ogni fila è spostata di mezzo tubo rispetto a quella sotto, così i tubi si alloggiano negli incavi.
-  // Dalla composizione (barre per fila, dal basso) ricava quante barre ha ogni fila e di quanto è spostata (in diametri).
+  // Composizione (barre per fila, dal basso): ogni fila è centrata sul bancale. Se ha un numero di barre diverso da quella
+  // sotto (7 6) cade negli incavi, a nido d'ape; se ha lo stesso numero (7 7) è appoggiata dritta, tubo su tubo.
   function rowPlan(rows, total) {
     const ns = [];
     for (let i = 0, r = 0; i < total; r++) { const n = Math.max(1, Math.min(rows[Math.min(r, rows.length - 1)], total - i)); ns.push(n); i += n; }
-    let best = null;
-    for (const s0 of [0, -0.25, 0.25]) {
-      const sh = [s0]; let ph = s0 + (ns[0] - 1) / 2;
-      for (let r = 1; r < ns.length; r++) {
-        let v = (ph + 0.5 - (ns[r] - 1) / 2) % 1; if (v > 0.5 + 1e-9) v -= 1; if (v <= -0.5 + 1e-9) v += 1;
-        if (Math.abs(Math.abs(v) - 0.5) < 1e-9) v = sh[r - 1] > 0 ? -0.5 : 0.5;
-        sh.push(v); ph = v + (ns[r] - 1) / 2;
-      }
-      const ext = Math.max(...ns.map((n, r) => n + 2 * Math.abs(sh[r]))), sum = sh.reduce((x, v) => x + Math.abs(v), 0);
-      if (!best || ext < best.ext - 1e-9 || (Math.abs(ext - best.ext) < 1e-9 && sum < best.sum - 1e-9)) best = { ns, sh, ext, sum };
-    }
-    return best;
+    return { ns, sh: ns.map(() => 0), ext: Math.max(...ns) };
   }
   // larghezza occupata dalle barre di una composizione, in diametri (tiene conto dello sfalsamento)
   const rowsExt = rows => rowPlan(rows, rows.reduce((x, y) => x + y, 0)).ext;
