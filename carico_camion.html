@@ -458,9 +458,11 @@ body.drag .veil{display:grid}
               <label class="fld">Ø esterno barra (mm)<input id="nOd" type="number" min="0" step="0.1" inputmode="decimal"></label>
               <label class="fld">Ø interno barra (mm)<input id="nIdm" type="number" min="0" step="0.1" inputmode="decimal"></label>
               <label class="fld">Barre per bancale<input id="nCap" type="number" min="0" step="1" inputmode="decimal" placeholder="calcolate"></label>
-              <label class="fld">Barre per fila<input id="nRow" type="number" min="0" step="1" inputmode="decimal" placeholder="calcolate"></label>
               <label class="fld">Larghezza bancale (m)<input id="nPalW" type="number" min="0" step="0.01" inputmode="decimal" value="1.2"></label>
               <label class="fld">Altezza bancale (m)<input id="nPalH" type="number" min="0" step="0.01" inputmode="decimal" placeholder="calcolata"></label>
+              <label class="fld">Legni laterali (cm)<input id="nLegS" type="number" min="0" step="0.5" inputmode="decimal" placeholder="5"></label>
+              <label class="fld">Legni superiori (cm)<input id="nLegT" type="number" min="0" step="0.5" inputmode="decimal" placeholder="6"></label>
+              <label class="fld">Legni inferiori (cm)<input id="nLegB" type="number" min="0" step="0.5" inputmode="decimal" placeholder="8"></label>
             </div>
           </div>
           <p class="full copyinfo" id="nCopyInfo" hidden></p>
@@ -933,10 +935,16 @@ const Lib = (() => {
   }
 
   /* ---------- 7. Bancali di barre ---------- */
-  const WOOD_B = 0.08, WOOD_T = 0.06, POST = 0.05;
-  function layoutLayers(layers, palW, hex) {
-    const Wi = palW - 2 * POST, pos = [];
-    let y = WOOD_B;
+  // spessori dei legni del bancale di barre (cm): inferiori, superiori, laterali. Valori di partenza approssimativi,
+  // modificabili articolo per articolo nel database (campi legB, legT, legS)
+  const WOOD_DEF = { b: 8, t: 6, s: 5 };
+  const WOOD_B = WOOD_DEF.b / 100, WOOD_T = WOOD_DEF.t / 100, POST = WOOD_DEF.s / 100;
+  const W0 = { b: WOOD_B, t: WOOD_T, s: POST };
+  const woodOf = dm => ({ b: (dm && dm.legB > 0 ? dm.legB : WOOD_DEF.b) / 100, t: (dm && dm.legT > 0 ? dm.legT : WOOD_DEF.t) / 100, s: (dm && dm.legS > 0 ? dm.legS : WOOD_DEF.s) / 100 });
+  const woodMax = list => list.reduce((a, w) => ({ b: Math.max(a.b, w.b), t: Math.max(a.t, w.t), s: Math.max(a.s, w.s) }), { b: 0, t: 0, s: 0 });
+  function layoutLayers(layers, palW, hex, w = W0) {
+    const Wi = palW - 2 * w.s, pos = [];
+    let y = w.b;
     for (const L of layers) {
       const d = L.sp, c = L.c > 0 ? L.c : Math.max(1, Math.floor((Wi + 1e-6) / d));
       let row = 0, i = 0;
@@ -960,16 +968,16 @@ const Lib = (() => {
       }
       if (row) y += d + (row - 1) * (hex ? d * 0.866 : d);
     }
-    return { pos, h: y + WOOD_T };
+    return { pos, h: y + w.t };
   }
-  const widthFor = (c, sp) => Math.ceil((c * sp + 2 * POST) * 100 - 1e-6) / 100;
+  const widthFor = (c, sp, w = W0) => Math.ceil((c * sp + 2 * w.s) * 100 - 1e-6) / 100;
   // barre per fila del bancale pieno: quelle indicate, altrimenti quante ne stanno nella larghezza
-  const rowC = (dm, sp) => dm.rows && dm.rows.length ? Math.max(...dm.rows) : dm.perRow > 0 ? Math.round(dm.perRow) : Math.max(1, Math.floor(((dm.palW || 1.2) - 2 * POST + 1e-6) / sp));
+  const rowC = (dm, sp) => dm.rows && dm.rows.length ? Math.max(...dm.rows) : dm.perRow > 0 ? Math.round(dm.perRow) : Math.max(1, Math.floor(((dm.palW || 1.2) - 2 * woodOf(dm).s + 1e-6) / sp));
   // bancale ridotto (legni tagliati): il più stretto che resta più largo che alto
-  function fitC(n, sp, hex, cMax) {
+  function fitC(n, sp, hex, cMax, wd = W0) {
     for (let c = 1; c <= cMax; c++) {
-      const w = widthFor(c, sp);
-      if (w >= layoutLayers([{ sp, c, pieces: new Array(n).fill(null) }], w, hex).h - 1e-6) return c;
+      const w = widthFor(c, sp, wd);
+      if (w >= layoutLayers([{ sp, c, pieces: new Array(n).fill(null) }], w, hex, wd).h - 1e-6) return c;
     }
     return Math.max(1, Math.min(n, cMax));
   }
@@ -977,15 +985,15 @@ const Lib = (() => {
     if (dm.rows && dm.rows.length) return dm.rows.reduce((a, b) => a + b, 0);
     if (dm.cap) return dm.cap;
     const c = rowC(dm, sp);
-    const rows = Math.max(1, Math.floor((0.66 - sp) / (hex ? sp * 0.866 : sp)) + 1);
+    const wd = woodOf(dm), rows = Math.max(1, Math.floor((0.8 - wd.b - wd.t - sp) / (hex ? sp * 0.866 : sp)) + 1);
     return Math.max(1, hex ? Math.round(rows * (c - 0.5)) : rows * c);
   }
 
   /* ---------- 8. Dalle righe d'ordine ai colli ---------- */
   function dimsFor(key, dims) {
     const o = dims[key] || {}, d = { ...defaultDims(key), ...o };
-    if (key[0] === 'B' && d.rows && d.rows.length) { const od = d.od / 1000, sp = d.bellL > 0 ? od * 1.03 : od; d.cap = d.rows.reduce((a, b) => a + b, 0); d.perRow = Math.max(...d.rows); d.palW = Math.max(o.palW || 0, widthFor(d.perRow, sp)); }
-    else if (key[0] === 'B' && d.perRow > 0) { const od = d.od / 1000; d.palW = Math.max(o.palW || 0, widthFor(Math.round(d.perRow), d.bellL > 0 ? od * 1.03 : od)); }
+    if (key[0] === 'B' && d.rows && d.rows.length) { const od = d.od / 1000, sp = d.bellL > 0 ? od * 1.03 : od; d.cap = d.rows.reduce((a, b) => a + b, 0); d.perRow = Math.max(...d.rows); d.palW = Math.max(o.palW || 0, widthFor(d.perRow, sp, woodOf(d))); }
+    else if (key[0] === 'B' && d.perRow > 0) { const od = d.od / 1000; d.palW = Math.max(o.palW || 0, widthFor(Math.round(d.perRow), d.bellL > 0 ? od * 1.03 : od, woodOf(d))); }
     return d;
   }
   function buildItems(orders, dims, cfg) {
@@ -1040,18 +1048,19 @@ const Lib = (() => {
         const dm0 = dimsFor(layers[0].pieces[0].key, dims);
         const hex = layers.every(L => L.pieces[0].hex);
         const loose = layers.length === 1 && layers[0].loose;
-        const palW = loose ? layers[0].sp + 2 * POST : layers.length === 1 && layers[0].small ? widthFor(layers[0].c, layers[0].sp) : Math.min(cfg.truckW, Math.max(...layers.map(L => dimsFor(L.pieces[0].key, dims).palW || 1.2)));
-        const lay = layoutLayers(layers, palW, hex);
+        const wd = woodMax(layers.map(L => woodOf(dimsFor(L.pieces[0].key, dims))));
+        const palW = loose ? layers[0].sp + 2 * wd.s : layers.length === 1 && layers[0].small ? widthFor(layers[0].c, layers[0].sp, wd) : Math.min(cfg.truckW, Math.max(...layers.map(L => dimsFor(L.pieces[0].key, dims).palW || 1.2)));
+        const lay = layoutLayers(layers, palW, hex, wd);
         let h = lay.h;
-        if (loose) { lay.pos.forEach(q => { q.y -= WOOD_B; }); h = layers[0].sp; }
+        if (loose) { lay.pos.forEach(q => { q.y -= wd.b; }); h = layers[0].sp; }
         else if (layers.length === 1 && dm0.palH) {
-          const full = layoutLayers([{ sp: layers[0].sp, c: rowC(dm0, layers[0].sp), rows: dm0.rows, pieces: new Array(capFor(dm0, layers[0].sp, hex)).fill(null) }], dm0.palW || 1.2, hex).h;
+          const full = layoutLayers([{ sp: layers[0].sp, c: rowC(dm0, layers[0].sp), rows: dm0.rows, pieces: new Array(capFor(dm0, layers[0].sp, hex)).fill(null) }], dm0.palW || 1.2, hex, wd).h;
           h = Math.max(lay.h * 0.5, dm0.palH * lay.h / full);
         }
         const all = layers.flatMap(L => L.pieces);
         const lx = Math.max(...all.map(p => p.len + p.bellL));
         const it = {
-          id: uid++, kind: 'bar', loose, orderId: o.id, seq: o.seq, lx: r3(lx), lz: r3(loose ? layers[0].sp : palW), h: r3(h), hex, pos: lay.pos, mixed: layers.length > 1,
+          id: uid++, kind: 'bar', loose, orderId: o.id, seq: o.seq, lx: r3(lx), lz: r3(loose ? layers[0].sp : palW), h: r3(h), hex, pos: lay.pos, mixed: layers.length > 1, wood: wd,
           layers: layers.map(L => ({ key: L.pieces[0].key, fam: L.pieces[0].fam, dn: L.pieces[0].dn, len: L.pieces[0].len, n: L.pieces.length })),
           nPezzi: all.length, codice: '', desc: '',
         };
@@ -1068,7 +1077,7 @@ const Lib = (() => {
         const one = (pcs) => {
           if (pcs.length === 1 && cap > 1) { p0.rec.loose = true; makePallet([{ sp, c: 1, loose: true, pieces: pcs }]); return; }
           if (pcs.length >= cap) { makePallet([{ sp, c: cFull, rows: dm.rows, pieces: pcs }]); return; }
-          const auto = fitC(pcs.length, sp, p0.hex, cFull), cTruck = Math.max(1, Math.floor((cfg.truckW - 2 * POST + 1e-6) / sp));
+          const wd = woodOf(dm), auto = fitC(pcs.length, sp, p0.hex, cFull, wd), cTruck = Math.max(1, Math.floor((cfg.truckW - 2 * wd.s + 1e-6) / sp));
           const c = row.perRow > 0 ? Math.max(1, Math.min(Math.round(row.perRow), pcs.length, cTruck)) : auto;
           p0.rec.small = { n: pcs.length, c, auto };
           makePallet([{ sp, c, small: true, pieces: pcs }]);
@@ -1084,7 +1093,7 @@ const Lib = (() => {
         for (let i = 0; i < full; i++) one(ps.slice(i * cap, (i + 1) * cap));
         const rem = ps.slice(full * cap);
         if (!rem.length) continue;
-        if (cfg.mixPal) leftovers.push({ sp, pieces: rem, len: p0.len, hex: p0.hex, solo: () => one(rem) });
+        if (cfg.mixPal) leftovers.push({ sp, pieces: rem, len: p0.len, hex: p0.hex, wood: woodOf(dm), solo: () => one(rem) });
         else one(rem);
       }
       // resti Polier della stessa lunghezza uniti in bancali misti (strati, i diametri grandi sotto)
@@ -1096,7 +1105,7 @@ const Lib = (() => {
         for (const L of list) {
           let placed = false;
           for (const P of pallets) {
-            const h = layoutLayers([...P, L], 1.2, [...P, L].every(x => x.hex)).h;
+            const h = layoutLayers([...P, L], 1.2, [...P, L].every(x => x.hex), woodMax([...P, L].map(x => x.wood))).h;
             if (h <= 0.8 + 1e-6) { P.push(L); placed = true; break; }
           }
           if (!placed) pallets.push([L]);
@@ -1152,7 +1161,7 @@ const Lib = (() => {
 
   // bancale su bancale: i legni del superiore poggiano sui tubi accanto a quelli dell'inferiore (si recupera il traverso)
   const STAGGER = 0.15;
-  const topFor = (it, p) => p.y + p.h - (it.kind === 'bar' && p.kind === 'bar' && !it.generic && !p.generic && !p.loose ? WOOD_T : 0);
+  const topFor = (it, p) => p.y + p.h - (it.kind === 'bar' && p.kind === 'bar' && !it.generic && !p.generic && !p.loose ? (p.wT ?? WOOD_T) : 0);
   function findBox(v, placed, V, it, minX, opt) {
     if (v.lx > V.L + EPS || v.lz > V.W + EPS || v.h > V.H + EPS) return null;
     const xs = new Set([Math.round(minX * 1000)]), zs = new Set([0, Math.round((V.W - v.lz) * 1000)]);
@@ -1318,7 +1327,7 @@ const Lib = (() => {
           if (below) below.covered = true;
           spot.x = spot.cx - spot.r; spot.z = spot.cz - spot.r; spot.lx = spot.lz = 2 * spot.r;
         }
-        placed.push({ ...spot, id: it.id, kind: it.kind, seq: it.seq });
+        placed.push({ ...spot, id: it.id, kind: it.kind, seq: it.seq, wT: it.wood ? it.wood.t : undefined });
       } else { rest.push(it); fail.set(fk, placed.length); }
     }
     return { placed, rest };
@@ -1371,7 +1380,7 @@ const Lib = (() => {
       for (const q of out[sp.vano]) if (xzOver(p, q) && topFor(it, q) > base) { base = topFor(it, q); below = q; }
       p.y = base;
       if (below && below.shape === 'cyl' && p.shape === 'cyl') below.covered = true;
-      out[sp.vano].push({ ...p, id: it.id, kind: it.kind, seq: it.seq, fixed: true });
+      out[sp.vano].push({ ...p, id: it.id, kind: it.kind, seq: it.seq, fixed: true, wT: it.wood ? it.wood.t : undefined });
     }
     return out;
   }
@@ -1453,7 +1462,7 @@ const Lib = (() => {
   function palletGeom(dm) {
     const od = dm.od / 1000, sp = dm.bellL > 0 ? od * 1.03 : od, hex = dm.hex !== false;
     const cap = capFor(dm, sp, hex), w = dm.palW || 1.2, c = rowC(dm, sp);
-    const lay = layoutLayers([{ sp, c, rows: dm.rows, pieces: new Array(Math.max(1, cap)).fill(null) }], w, hex);
+    const lay = layoutLayers([{ sp, c, rows: dm.rows, pieces: new Array(Math.max(1, cap)).fill(null) }], w, hex, woodOf(dm));
     const counts = []; lay.pos.forEach(q => { counts[q.row] = (counts[q.row] || 0) + 1; });
     return { cap, w, c, counts, h: dm.palH || lay.h, hCalc: lay.h };
   }
@@ -1500,7 +1509,7 @@ const Lib = (() => {
     return { src, note, issues, status };
   }
 
-  return { parseOrder, classify, keyLabel, parseKey, defaultDims, FAM, CATALOG, buildItems, plan, circlesIn, volOf, rollAABB, WOOD_T, STAGGER, FG_OF, FG_NAME, CUSTOM, SRC, setCustom, lookupCode, provenance, palletGeom, dimsFor, noNestDefault, ROLL_F, BAR_F };
+  return { parseOrder, classify, keyLabel, parseKey, defaultDims, FAM, CATALOG, buildItems, plan, circlesIn, volOf, rollAABB, WOOD_T, WOOD_DEF, woodOf, STAGGER, FG_OF, FG_NAME, CUSTOM, SRC, setCustom, lookupCode, provenance, palletGeom, dimsFor, noNestDefault, ROLL_F, BAR_F };
 })();
 
 
@@ -2302,7 +2311,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     const tipo = pre.tipo || 'rotolo';
     document.querySelector(`input[name=ntipo][value=${tipo}]`).checked = true;
     $('#nCodes').value = pre.codes || ''; $('#nName').value = pre.name || '';
-    ['nDn', 'nLen', 'nD', 'nDInt', 'nWd', 'nOd', 'nIdm', 'nCap', 'nRow', 'nPalH', 'nFamName'].forEach(id => { $('#' + id).value = ''; });
+    ['nDn', 'nLen', 'nD', 'nDInt', 'nWd', 'nOd', 'nIdm', 'nCap', 'nLegS', 'nLegT', 'nLegB', 'nPalH', 'nFamName'].forEach(id => { $('#' + id).value = ''; });
     $('#nPalW').value = '1.2'; $('#nOrient').value = 'auto'; $('#nATerra').checked = false; $('#nPe').checked = false; $('#nAsp').value = 'liscio';
     $('#nUnit').value = pre.unit || 'PZ'; $('#nPer').value = pre.per || ''; $('#nL').value = pre.L || '1.2'; $('#nW').value = pre.W || '0.8'; $('#nH').value = pre.H || ''; $('#nStack').checked = true; $('#nColor').value = '#b9a07a';
     fillCopy(tipo, pre.copyKey);
@@ -2355,11 +2364,11 @@ const FIREBASE_DOC = 'carico-camion/database';
           if (!(dInt >= 0) || dInt >= D) return err('Il foro deve essere più piccolo del diametro esterno.');
           dims = { D, dInt, Wd, orient: $('#nOrient').value, aTerra: $('#nATerra').checked, stima: false };
         } else {
-          const od = num('nOd'), idm = num('nIdm'), cap = num('nCap'), palW = num('nPalW'), palH = num('nPalH'), perRow = Math.round(num('nRow'));
+          const od = num('nOd'), idm = num('nIdm'), cap = num('nCap'), palW = num('nPalW'), palH = num('nPalH');
           if (!(od > 0) || !(idm > 0) || idm >= od) return err('Inserisci diametro esterno e interno della barra, in millimetri: l’interno deve essere più piccolo.');
           if (!(palW > 0.2)) return err('Inserisci la larghezza del bancale, in metri.');
           dims = { od, idm, cap: cap > 0 ? Math.round(cap) : null, palW, palH: palH > 0 ? palH : null, bellL: 0, bellD: 0, stima: false, palStima: false };
-          if (perRow > 0) { dims.perRow = perRow; delete dims.palW; }
+          [['legS', 'nLegS'], ['legT', 'nLegT'], ['legB', 'nLegB']].forEach(([f, id]) => { const v = num(id); if (v > 0 && v <= 30) dims[f] = v; });
         }
       }
       if (newFam && !$('#nFamName').value.trim()) return err('Dai un nome alla nuova famiglia.');
@@ -2407,6 +2416,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     if (f === 'perRow') return [o.perRow > 0 ? o.perRow : '', Lib.palletGeom(d).c];
     if (f === 'cap') return [d.cap ?? '', d.cap ? '' : Lib.palletGeom(d).cap];
     if (f === 'palH') return [d.palH ?? '', d.palH ? '' : fmt(Lib.palletGeom(d).hCalc)];
+    if (f === 'legB' || f === 'legT' || f === 'legS') return [o[f] > 0 ? o[f] : '', String(Lib.WOOD_DEF[f[3].toLowerCase()]).replace('.', ',')];
     return [d[f] ?? '', ''];
   }
   function syncRow(tr, k) {
@@ -2434,7 +2444,7 @@ const FIREBASE_DOC = 'carico-camion/database';
       const cn = (f, v, step) => `<input type="number" inputmode="decimal" step="${step}" min="0" data-art="${a.id}" data-f="${f}" value="${v ?? ''}" aria-label="${f}">`;
       return `<tr><th scope="row">${esc(a.name)}<span class="codes">${esc(a.codes.join(', '))}</span></th><td><select data-art="${a.id}" data-f="unit" aria-label="Unità"><option value="PZ"${a.unit === 'PZ' ? ' selected' : ''}>pezzi</option><option value="ML"${a.unit === 'ML' ? ' selected' : ''}>metri</option></select></td><td>${cn('per', a.per, 'any')}</td><td>${cn('L', a.L, 0.01)}</td><td>${cn('W', a.W, 0.01)}</td><td>${cn('H', a.H, 0.01)}</td><td class="c-chk"><input type="checkbox" data-art="${a.id}" data-f="stackable" ${a.stackable !== false ? 'checked' : ''} aria-label="Impilabile"></td><td><button class="link" data-delart="${a.id}">Elimina</button></td></tr>`;
     };
-    const barRow = k => `<tr data-row="${esc(k)}">${head(k)}<td>${n(k, 'od', 1)}</td><td>${n(k, 'idm', 0.1)}</td><td>${n(k, 'cap', 1)}</td><td>${n(k, 'perRow', 1)}</td><td>${n(k, 'palW', 0.01)}</td><td>${n(k, 'palH', 0.01)}</td><td><input class="rows" type="text" inputmode="numeric" data-k="${k}" data-f="rows" value="${cellVal(k, 'rows')[0]}" placeholder="${cellVal(k, 'rows')[1]}" aria-label="Barre per ogni fila" autocomplete="off"></td><td class="c-res">${resHTML(k)}</td><td class="c-st">${stateHTML(k)}</td></tr>`;
+    const barRow = k => `<tr data-row="${esc(k)}">${head(k)}<td>${n(k, 'od', 1)}</td><td>${n(k, 'idm', 0.1)}</td><td>${n(k, 'cap', 1)}</td><td>${n(k, 'palW', 0.01)}</td><td>${n(k, 'palH', 0.01)}</td><td>${n(k, 'legS', 0.5)}</td><td>${n(k, 'legT', 0.5)}</td><td>${n(k, 'legB', 0.5)}</td><td><input class="rows" type="text" inputmode="numeric" data-k="${k}" data-f="rows" value="${cellVal(k, 'rows')[0]}" placeholder="${cellVal(k, 'rows')[1]}" aria-label="Barre per ogni fila" autocomplete="off"></td><td class="c-res">${resHTML(k)}</td><td class="c-st">${stateHTML(k)}</td></tr>`;
     const rollRow = k => {
       const d = dimsOf(k);
       return `<tr data-row="${esc(k)}">${head(k)}<td>${n(k, 'D', 0.01)}</td><td>${n(k, 'dInt', 0.01)}</td><td>${n(k, 'Wd', 0.01)}</td>
@@ -2445,7 +2455,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     const grouped = (row, cols) => { let last = null; return ks.map(k => { const fg = Lib.parseKey(k).fg, g = fg !== last ? `<tr class="grp"><td colspan="${cols}">${esc(GROUP_LABEL(dbT, fg))}</td></tr>` : ''; last = fg; return g + row(k); }).join(''); };
     const body = $('#dimsBody'), top = body.scrollTop;
     body.innerHTML = !ks.length ? `<p class="muted" style="padding:14px 0">${dbT === 'P' && !q ? 'Nessun bancale a misura: aggiungilo con «Nuovo articolo».' : 'Nessun articolo corrisponde alla ricerca.'}</p>`
-      : dbT === 'B' ? `<table class="dims"><thead><tr>${th('Barre')}${th('Ø esterno', 'mm')}${th('Ø interno', 'mm')}${th('Barre per bancale')}${th('Barre per fila')}${th('Larghezza bancale', 'm')}${th('Altezza bancale', 'm')}${th('Composizione', 'barre per fila, dal basso (es. 7 7 7 6)')}${th('Bancale pieno', 'ingombro')}${th('Misura')}</tr></thead><tbody>${grouped(barRow, 10)}</tbody></table>`
+      : dbT === 'B' ? `<table class="dims"><thead><tr>${th('Barre')}${th('Ø esterno', 'mm')}${th('Ø interno', 'mm')}${th('Barre per bancale')}${th('Larghezza bancale', 'm')}${th('Altezza bancale', 'm')}${th('Legni laterali', 'spessore, cm')}${th('Legni superiori', 'spessore, cm')}${th('Legni inferiori', 'spessore, cm')}${th('Composizione', 'barre per fila, dal basso (es. 7 7 7 6)')}${th('Bancale pieno', 'ingombro')}${th('Misura')}</tr></thead><tbody>${grouped(barRow, 12)}</tbody></table>`
       : dbT === 'R' ? `<table class="dims"><thead><tr>${th('Rotoli')}${th('Ø rotolo', 'm')}${th('Ø foro', 'm')}${th('Altezza', 'm')}${th('Disposizione')}${th('Solo sul pianale')}${th('Misura')}</tr></thead><tbody>${grouped(rollRow, 7)}</tbody></table>`
       : `<table class="dims"><thead><tr>${th('Bancali a misura')}${th('Si ordina in')}${th('Per bancale')}${th('Lunghezza', 'm')}${th('Larghezza', 'm')}${th('Altezza', 'm')}${th('Impilabile')}${th('')}</tr></thead><tbody>${ks.map(colloRow).join('')}</tbody></table>`;
     body.scrollTop = top;
@@ -2476,7 +2486,9 @@ const FIREBASE_DOC = 'carico-camion/database';
     }
     else {
       const v = parseFloat(String(el.value).replace(',', '.'));
-      if (['cap', 'palH', 'perRow'].includes(f) && !(v > 0)) { if (f === 'perRow') delete cur.perRow; else cur[f] = null; }
+      if (['legB', 'legT', 'legS'].includes(f) && !(v > 0)) delete cur[f];
+      else if (['legB', 'legT', 'legS'].includes(f) && v > 30) { toast('Lo spessore dei legni va scritto in centimetri (per esempio 8).', 'warn'); el.value = cellVal(k, f)[0]; return; }
+      else if (['cap', 'palH', 'perRow'].includes(f) && !(v > 0)) { if (f === 'perRow') delete cur.perRow; else cur[f] = null; }
       else if (v > 0) cur[f] = ['cap', 'perRow'].includes(f) ? Math.round(v) : v;
       else { el.value = cellVal(k, f)[0]; return; }
       // larghezza e barre per fila sono legate: vale l'ultima che scrivi
@@ -2688,9 +2700,10 @@ const FIREBASE_DOC = 'carico-camion/database';
     for (let i = 0; !it.loose && i < nF; i++) {
       const fx = x0 + 0.35 + i * (L - 0.7) / (nF - 1);
       const add = (w, h, d, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wood); m.position.set(x, y, z); g.add(m); };
-      add(0.1, 0.08, W, fx, y0 + 0.04, 0);
-      add(0.1, 0.06, W, fx, y0 + H - 0.03, 0);
-      add(0.1, H, 0.05, fx, 0, -W / 2 + 0.025); add(0.1, H, 0.05, fx, 0, W / 2 - 0.025);
+      const wd = it.wood || { b: Lib.WOOD_DEF.b / 100, t: Lib.WOOD_DEF.t / 100, s: Lib.WOOD_DEF.s / 100 };
+      add(0.1, wd.b, W, fx, y0 + wd.b / 2, 0);
+      add(0.1, wd.t, W, fx, y0 + H - wd.t / 2, 0);
+      add(0.1, H, wd.s, fx, 0, -W / 2 + wd.s / 2); add(0.1, H, wd.s, fx, 0, W / 2 - wd.s / 2);
       if (i === 0 || i === nF - 1) {
         const sm = plainMat(real ? clientColor : '#f2f2f2', 0.5), sx = fx + (i ? -0.14 : 0.14);
         [[0.035, 0.008, W + 0.012, 0, H / 2 + 0.004, 0], [0.035, 0.008, W + 0.012, 0, -H / 2 - 0.004, 0], [0.035, H + 0.012, 0.008, 0, 0, -W / 2 - 0.004], [0.035, H + 0.012, 0.008, 0, 0, W / 2 + 0.004]]
@@ -3004,14 +3017,14 @@ const FIREBASE_DOC = 'carico-camion/database';
   function plOf(it, sp, y) {
     const fp = footprint(it, sp);
     const o = it.kind === 'bar' ? 'bar' : fp.shape === 'cyl' ? 'flat' : 'free';
-    return { id: it.id, kind: it.kind, seq: it.seq, vano: sp.vano, shape: fp.shape, cx: sp.cx, cz: sp.cz, r: fp.r, x: sp.cx - fp.hx, z: sp.cz - fp.hz, lx: 2 * fp.hx, lz: 2 * fp.hz, h: fp.h, y, o, tilt: sp.tilt, yaw: sp.yaw, rot: fp.rot, top: it.kind === 'bar' ? (it.generic ? it.stackable !== false : true) : false };
+    return { id: it.id, kind: it.kind, seq: it.seq, vano: sp.vano, shape: fp.shape, cx: sp.cx, cz: sp.cz, r: fp.r, x: sp.cx - fp.hx, z: sp.cz - fp.hz, lx: 2 * fp.hx, lz: 2 * fp.hz, h: fp.h, y, o, tilt: sp.tilt, yaw: sp.yaw, rot: fp.rot, wT: it.wood ? it.wood.t : undefined, top: it.kind === 'bar' ? (it.generic ? it.stackable !== false : true) : false };
   }
   function overlapXZ(a, b) {
     const [ax, az] = centerOf(a), [bx, bz] = centerOf(b);
     if (a.shape === 'cyl' && b.shape === 'cyl') return Math.hypot(ax - bx, az - bz) < a.r + b.r - 0.005;
     return Math.abs(ax - bx) < a.lx / 2 + b.lx / 2 - 0.005 && Math.abs(az - bz) < a.lz / 2 + b.lz / 2 - 0.005;
   }
-  const topOf = (it, q) => q.y + q.h - (it.kind === 'bar' && q.kind === 'bar' && !q.loose ? Lib.WOOD_T : 0);
+  const topOf = (it, q) => q.y + q.h - (it.kind === 'bar' && q.kind === 'bar' && !q.loose ? (q.wT ?? Lib.WOOD_T) : 0);
   function restY(it, sp, exclude, posed) {
     const pool = (sp.vano >= 0 ? P.placements.filter(p => p.vano === sp.vano) : P.groundPl).filter(p => !exclude.has(p.id)).concat(posed.filter(p => p.vano === sp.vano));
     const me = plOf(it, sp, 0);
