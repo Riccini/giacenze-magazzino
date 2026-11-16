@@ -1890,7 +1890,7 @@ const FIREBASE_DOC = 'carico-camion/database';
 
   /* ---------- Portafoglio ordini (Excel esportato da AdHoc, resta in questo browser) ---------- */
   const PKEY = 'carico-portafoglio-v1';
-  let PF = null, pfList = [];
+  let PF = null, pfList = [], pfNote = '';
   try { PF = JSON.parse(localStorage.getItem(PKEY) || 'null'); } catch (e) { PF = null; }
   const pfDate = iso => iso ? iso.split('-').reverse().join('/') : '';
   const pad2 = n => String(n).padStart(2, '0');
@@ -1951,7 +1951,9 @@ const FIREBASE_DOC = 'carico-camion/database';
       const t = new Date(PF.loaded);
       st.textContent = `${PF.file}: ${PF.docs.length} ordini aperti, caricato il ${t.toLocaleDateString('it-IT')} alle ${t.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}.`;
     }
-    $('#pfNum').disabled = $('#pfAdd').disabled = $('#pfMt').disabled = !has;
+    // il campo resta sempre scrivibile: se manca il portafoglio lo spiega al momento della ricerca
+    $('#pfNum').disabled = $('#pfAdd').disabled = $('#pfMt').disabled = false;
+    if (pfNote) st.innerHTML += `<br><span class="warn">${esc(pfNote)}</span>`;
     const box = $('#pfChoice');
     if (!pfList.length) { box.hidden = true; box.innerHTML = ''; return; }
     const d0 = pfList[0];
@@ -1986,7 +1988,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     recompute();
   }
   function pfSearch() {
-    if (!PF) return;
+    if (!PF || !PF.docs || !PF.docs.length) { toast((pfNote ? pfNote + ' ' : 'Nessun portafoglio ordini disponibile. ') + 'Intanto usa “Carica portafoglio ordini” in alto e scegli l’Excel dal PC.', 'warn'); return; }
     let raw = $('#pfNum').value.trim().toUpperCase().replace(/\s+/g, '');
     const m = raw.match(/^0*(\d+)[\/-]?(MT)?$/);
     if (!m) { toast('Scrivi solo il numero d’ordine, per esempio 4430 (con MT per gli ordini Metel).', 'warn'); return; }
@@ -3346,22 +3348,32 @@ const FIREBASE_DOC = 'carico-camion/database';
 
   /* ---------- Ordini aperti pubblicati dal repository (ordini.json accanto alla pagina) ---------- */
   async function loadOrdiniJson() {
-    if (!/^https?:$/.test(location.protocol) || /claude\./.test(location.hostname)) return;
+    // sul sito si legge il file accanto alla pagina; aperta dal PC o altrove, quello pubblicato su GitHub
+    const onSite = /^https?:$/.test(location.protocol) && !/claude\./.test(location.hostname);
+    const url = onSite ? 'ordini.json' : 'https://riccini.github.io/giacenze-magazzino/ordini.json';
+    pfNote = 'Sto leggendo ordini.json…'; renderPf();
     try {
-      const r = await fetch(`ordini.json?t=${Date.now()}`, { cache: 'no-store' });
-      if (!r.ok) return;
+      const r = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store' });
+      if (!r.ok) { pfNote = `ordini.json non trovato sul sito (errore ${r.status}): controlla il repository e la scheda Actions.`; renderPf(); return; }
       const d = await r.json();
-      if (!d || !Array.isArray(d.docs)) return;
+      if (!d || !Array.isArray(d.docs)) { pfNote = 'ordini.json non è leggibile.'; renderPf(); return; }
+      const gen = d.generato ? new Date(d.generato).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+      // file vuoto (export di AdHoc senza righe): tengo l'ultimo portafoglio valido
+      if (!d.docs.length) { pfNote = `L’ultimo ordini.json${gen ? ' (' + gen + ')' : ''} è vuoto: probabilmente l’export del portafoglio da AdHoc non conteneva righe.${PF && PF.docs && PF.docs.length ? ' Uso il portafoglio precedente.' : ''}`; renderPf(); return; }
+      pfNote = '';
       // un Excel caricato a mano dopo l'ultimo aggiornamento automatico resta valido
       if (PF && PF.manuale && PF.loaded > (d.generato || '')) return;
       PF = { file: `ordini.json (${d.file || 'portafoglio'})`, loaded: d.generato || new Date().toISOString(), docs: d.docs, auto: true };
       try { localStorage.setItem(PKEY, JSON.stringify(PF)); } catch (e) { /* ignora */ }
       renderPf();
-    } catch (e) { /* nessun ordini.json: resta il portafoglio caricato a mano */ }
+    } catch (e) { pfNote = 'ordini.json non raggiungibile (connessione?).'; renderPf(); }
   }
 
-  refreshCodeList(); renderCfg(); buildTruck(); resize(); recompute(); setView('3d'); requestAnimationFrame(frame);
-  fbStart(); loadOrdiniJson();
+  // ordini e database condiviso partono comunque, anche se il disegno iniziale dovesse fallire
+  loadOrdiniJson(); fbStart();
+  try { refreshCodeList(); renderCfg(); buildTruck(); resize(); recompute(); setView('3d'); }
+  catch (e) { console.error(e); toast('Errore all’apertura: ' + (e && e.message || e) + '. Prova a togliere gli ordini nel carico.', 'warn'); }
+  requestAnimationFrame(frame);
   window.__carico = { S, get P() { return P; }, openNew, showTab, prov: k => prov(k), get dlg() { return dlg; }, select: s => select(s), get gobjs() { return gobjs; }, toGround: sigs => toGround(allObjs().filter(g => sigs.includes(g.userData.it.sig))), screenOf(sig) { const g = objBySig(sig); const v = g.position.clone().project(camera); const r = canvas.getBoundingClientRect(); return [r.left + (v.x + 1) / 2 * r.width, r.top + (1 - v.y) / 2 * r.height]; }, get objs() { return objs; }, setView, anim, applyAnim, loadFiles, look(px, py, pz, tx, ty, tz) { camera.position.set(px, py, pz); controls.target.set(tx, ty, tz); controls.update(); dirty = true; }, recompute };
 })();
 
