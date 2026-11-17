@@ -386,6 +386,7 @@ body.drag .veil{display:grid}
       <div id="tip" hidden></div>
     </div>
     <div class="anim">
+      <button class="btn primary" id="optim" title="Prova molte disposizioni per qualche secondo e tiene quella che usa meno pianale">Ottimizza carico</button>
       <button class="btn" id="play">Guarda il carico</button>
       <input type="range" id="step" min="0" max="0" step="1" value="0" aria-label="Passo del carico">
       <span id="stepLab"></span>
@@ -1399,6 +1400,21 @@ const Lib = (() => {
     return { placed, rest };
   }
   const volOf = i => i.kind === 'bar' ? i.lx * i.lz * i.h : Math.PI * i.D * i.D / 4 * i.Wd;
+  // generatore pseudo-casuale ripetibile (stessa prova = stesso risultato)
+  const rng = seed => () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  function shuffleItems(list, opt, rnd) {
+    // mescola solo dentro gruppi di colli dello stesso scarico e dello stesso tipo: la sequenza di scarico resta rispettata
+    const key = i => (opt.div === 'separato' ? i.seq + '|' : '') + (i.kind === 'bar' ? 'b' : i.aTerra ? 't' : 'r') + (opt.div === 'separato' ? '' : '|' + i.seq);
+    const out = list.slice();
+    let a = 0;
+    while (a < out.length) {
+      let b = a; while (b + 1 < out.length && key(out[b + 1]) === key(out[a])) b++;
+      for (let i = b; i > a; i--) { if (rnd() < 0.5) { const j = a + Math.floor(rnd() * (i - a + 1)); [out[i], out[j]] = [out[j], out[i]]; } }
+      a = b + 1;
+    }
+    // a volte prova i rotoli prima delle barre dello stesso scarico
+    return out;
+  }
   function sortItems(items, opt, variant, floorFirst) {
     const inKind = (a, b) => a.kind === 'bar'
       ? (b.lx - a.lx || b.lz * b.h - a.lz * a.h)
@@ -1444,7 +1460,7 @@ const Lib = (() => {
     for (const { it, sp } of specs) {
       const V = vani[sp.vano];
       // collo lasciato esattamente dov'era (congelato dopo una modifica a mano di un altro collo)
-      if (sp.frozen && sp.pl) {
+      if ((sp.frozen || sp.locked) && sp.pl) {
         const p = { ...sp.pl, id: it.id, kind: it.kind, seq: it.seq, fixed: true };
         if (inside(p, V) && supported(it, p, out[sp.vano])) out[sp.vano].push(p); else dropped.push(it.id);
         continue;
@@ -1481,14 +1497,19 @@ const Lib = (() => {
     const hasFloor = items.some(i => i.aTerra);
     let best = null;
     const runList = [];
-    for (const mode of modes) runList.push([mode, 0, false]);
+    for (const mode of modes) runList.push([mode, 0, false, 0, false]);
     const extra = [];
-    for (const mode of modes) { extra.push([mode, 1, false]); if (hasFloor) extra.push([mode, 0, true]); }
+    for (const mode of modes) { extra.push([mode, 1, false, 0, false]); if (hasFloor) extra.push([mode, 0, true, 0, false]); }
     if (!items.length) runList.splice(1);
+    // prove in più (pulsante "Ottimizza"): stesse regole, ordine di posa dei colli mescolato
+    const tries = opt.tries || 0, rnd = rng(opt.seed || 1);
+    for (let t = 0; t < tries; t++) extra.push([modes[t % modes.length], t % 3 === 2 ? 1 : 0, hasFloor && t % 4 === 3, 0, true]);
     for (let ri = 0; ri < runList.length + extra.length; ri++) {
-      if (ri === runList.length && best && !best.rest.length && items.length > 70) break;
-      const [mode, variant, ff] = ri < runList.length ? runList[ri] : extra[ri - runList.length];
+      if (!tries && ri === runList.length && best && !best.rest.length && items.length > 70) break;
+      if (opt.deadline && ri >= runList.length && Date.now() > opt.deadline) break;
+      const [mode, variant, ff, , shuf] = ri < runList.length ? runList[ri] : extra[ri - runList.length];
       let list = sortItems(items, opt, variant, ff);
+      if (shuf) list = shuffleItems(list, opt, rnd);
       const placements = [], used = [];
       vani.forEach((V, vi) => {
         const r = packVano(list, V, opt, mode, fixedBy[vi]);
@@ -1673,10 +1694,34 @@ const FIREBASE_DOC = 'carico-camion/database';
   const nestRef = (r, oid) => r.nest === undefined || r.nest === 'no' ? r.nest : typeof r.nest === 'number' ? `${oid}:${r.nest}` : String(r.nest);
   // impronta di ciò che decide il carico (ordini, impostazioni, misure): le posizioni "congelate" valgono solo finché non cambia
   function loadKey() {
-    const t = JSON.stringify([S.orders, S.cfg, S.dims, S.custom]);
+    const t = JSON.stringify([S.orders, S.cfg, S.dims, S.custom], (k, v) => k === 'locked' ? undefined : v);
     let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0;
     return t.length + ':' + h;
   }
+  let optimRun = null;
+  // "Ottimizza carico": stesse regole di sempre, ma prova molti ordini di posa dei colli e tiene il carico più corto;
+  // il risultato resta fermo (posizioni congelate) finché non cambiano ordini, mezzo o misure
+  function optimize() {
+    if (!P || !P.items.length) return;
+    const before = P.usedTot, outBefore = P.rest.length, btn = $('#optim');
+    btn.disabled = true; btn.textContent = 'Sto ottimizzando…';
+    setTimeout(() => {
+      // le posizioni congelate dell'automatico non devono frenare la ricerca: restano solo quelle a mano e bloccate
+      for (const k in S.fixed) if (S.fixed[k].frozen) delete S.fixed[k];
+      optimRun = { ms: 4000, seed: (Date.now() % 100000) + 1 };
+      try { recompute(); } finally { optimRun = null; btn.disabled = false; btn.textContent = 'Ottimizza carico'; }
+      const better = P.rest.length < outBefore || P.usedTot < before - 0.005;
+      // fissa il risultato: i colli in automatico restano dove sono
+      for (const p of P.placements) {
+        const it = P.byId.get(p.id); if (!it || S.fixed[it.sig]) continue;
+        const { id, ...pl } = p; delete pl.fixed;
+        S.fixed[it.sig] = { ...specOf(p), frozen: true, pl };
+      }
+      S.frozenKey = loadKey(); recompute();
+      toast(better ? `Carico ottimizzato: ${fmt(P.usedTot)} m di pianale invece di ${fmt(before)} m${P.rest.length < outBefore ? `, ${outBefore - P.rest.length} colli in più nel mezzo` : ''}.` : 'Non ho trovato una disposizione più corta: il carico era già il migliore che riesco a calcolare.');
+    }, 40);
+  }
+  $('#optim').addEventListener('click', optimize);
   function recompute() {
     const bl = stops(); S.orders = bl.flatMap(b => b.list);
     if (S.frozenKey && S.frozenKey !== loadKey()) { for (const k in S.fixed) if (S.fixed[k].frozen) delete S.fixed[k]; S.frozenKey = null; }
@@ -1712,6 +1757,7 @@ const FIREBASE_DOC = 'carico-camion/database';
       if (S.fixed[it.sig] && S.fixed[it.sig].vano < vani.length) fixed.set(it.id, S.fixed[it.sig]);
     });
     const popt = { orient: S.cfg.orient, rispettaScarico: true, div: S.cfg.div, cV: S.cfg.cV / 100, cL: S.cfg.cL / 100, fixed };
+    if (optimRun) { popt.tries = 2000; popt.deadline = Date.now() + optimRun.ms; popt.seed = optimRun.seed; }
     let res = Lib.plan(items, vani, popt);
     // posizioni fissate che non stanno più nel mezzo (cambio di mezzo, colli tolti da sotto…): tornano in automatico.
     // Tolta una posizione, chi le stava sopra può restare senza appoggio: si ripete finché tutto è stabile.
@@ -1828,7 +1874,7 @@ const FIREBASE_DOC = 'carico-camion/database';
             <button data-act="del" aria-label="Togli ordine" title="Togli ordine">✕</button>
           </div>
         </header>
-        <div class="o-meta"><label class="chk"><input type="checkbox" data-act="on" ${on ? 'checked' : ''}> In questo carico</label>${status}</div>
+        <div class="o-meta"><label class="chk"><input type="checkbox" data-act="on" ${on ? 'checked' : ''}> In questo carico</label>${on ? `<label class="chk" title="I colli di questo ordine restano dove sono e non si possono spostare"><input type="checkbox" data-act="lock" ${o.locked ? 'checked' : ''}> Blocca posizioni</label>` : ''}${status}</div>
         ${join}
         <details${openIds.has(String(o.id)) ? ' open' : ''}><summary>${o.righe.length} righe d’ordine</summary>
           <table class="lines"><tbody>${rows}</tbody></table>
@@ -1950,10 +1996,29 @@ const FIREBASE_DOC = 'carico-camion/database';
       else { const v = Math.round(parseFloat(e.target.value)); if (v > 0) r.perRow = v; else delete r.perRow; }
       recompute(); return;
     }
+    if (e.target.dataset.act === 'lock') { setLock(S.orders.find(o => o.id === +e.target.closest('.order').dataset.id), e.target.checked); return; }
     if (e.target.dataset.act !== 'on') return;
     const o = S.orders.find(o => o.id === +e.target.closest('.order').dataset.id);
     o.on = e.target.checked; recompute();
   });
+  // blocca/sblocca le posizioni dei colli di un ordine (con lo scarico unico vale per tutto lo scarico)
+  function setLock(o, on) {
+    const lead = o.with || o.id, members = S.orders.filter(x => x.id === lead || x.with === lead);
+    members.forEach(x => { x.locked = on; });
+    let n = 0;
+    for (const it of P.items) {
+      if (it.orderId !== lead && !members.some(x => x.id === it.orderId)) continue;
+      if (on) {
+        const p = P.placements.find(q => q.id === it.id); if (!p) continue;
+        const { id, ...pl } = p; delete pl.fixed;
+        S.fixed[it.sig] = { ...specOf(p), locked: true, pl }; n++;
+      } else if (S.fixed[it.sig] && S.fixed[it.sig].locked) delete S.fixed[it.sig];
+    }
+    recompute();
+    toast(on ? `Posizioni bloccate: ${n} ${n === 1 ? 'collo resta' : 'colli restano'} dove ${n === 1 ? 'è' : 'sono'}.` : 'Posizioni sbloccate: i colli si possono di nuovo spostare.');
+  }
+  const isLocked = g => !!(S.fixed[g.userData.it.sig] || {}).locked;
+  const lockMsg = () => toast('Questo ordine ha le posizioni bloccate: togli la spunta “Blocca posizioni” per spostarlo.', 'warn');
   function addOrder(o) {
     if (o.numero && S.orders.some(x => x.numero === o.numero && x.codCliente === o.codCliente && (!x.data || !o.data || x.data === o.data))) { toast(`L’ordine ${o.numero}${o.data ? ' del ' + o.data : ''} è già nel carico.`); return false; }
     o.id = S.nextId++; o.on = true; o.color = PALETTE[(o.id - 1) % PALETTE.length];
@@ -3249,7 +3314,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     const one = gs.length === 1 ? gs[0] : null;
     if (one) {
       const it = one.userData.it, sp = curSpec(one), o = S.orders.find(x => x.id === it.orderId);
-      $('#selT').textContent = (it.kind === 'bar' ? 'Bancale selezionato' : 'Rotolo selezionato') + (one.userData.p.vano < 0 ? ', a terra' : '');
+      $('#selT').textContent = (it.kind === 'bar' ? 'Bancale selezionato' : 'Rotolo selezionato') + (one.userData.p.vano < 0 ? ', a terra' : '') + (isLocked(one) ? ' (bloccato)' : '');
       $('#selD').textContent = `${describe(it)}, ${o ? o.cliente : ''}`;
       $('#tilt').value = sp.tilt || 0; $('#yaw').value = sp.yaw || 0; rotLabels();
     } else {
@@ -3259,7 +3324,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     }
     $('#selRot').hidden = !(one && one.userData.it.kind === 'roll');
     $('#selGen').hidden = !(one && one.userData.it.generic);
-    $('#selAuto').hidden = !gs.some(g => S.fixed[g.userData.it.sig] && !S.fixed[g.userData.it.sig].frozen);
+    $('#selAuto').hidden = !gs.some(g => S.fixed[g.userData.it.sig] && !S.fixed[g.userData.it.sig].frozen && !S.fixed[g.userData.it.sig].locked);
     $('#selGround').hidden = gs.every(g => g.userData.p.vano < 0);
     $('#selMulti').setAttribute('aria-pressed', multiMode);
     updSelBoxes();
@@ -3341,13 +3406,14 @@ const FIREBASE_DOC = 'carico-camion/database';
       if (over) {
         // non ci sta sopra: i colli che occupano quel posto (e quelli appoggiati su di loro) vengono risistemati altrove
         const mine = list.filter(m => m.sp.vano >= 0).map(m => ({ ...plOf(m.g.userData.it, m.sp, 0), vano: m.sp.vano }));
-        const todo = P.placements.filter(q => !exclude.has(q.id) && !riders.has(q.id) && mine.some(a => a.vano === q.vano && overlapXZ(a, q)));
+        const lockedId = id => !!(S.fixed[P.byId.get(id)?.sig] || {}).locked;
+        const todo = P.placements.filter(q => !exclude.has(q.id) && !riders.has(q.id) && !lockedId(q.id) && mine.some(a => a.vano === q.vano && overlapXZ(a, q)));
         let nOut = 0;
         while (todo.length) {
           const q = todo.pop(); if (riders.has(q.id)) continue;
           riders.add(q.id); nOut++;
           const sig = P.byId.get(q.id)?.sig; if (sig) delete S.fixed[sig];
-          for (const r of P.placements) if (r.vano === q.vano && !exclude.has(r.id) && !riders.has(r.id) && r.y > q.y + q.h / 2 && overlapXZ(q, r)) todo.push(r);
+          for (const r of P.placements) if (r.vano === q.vano && !exclude.has(r.id) && !riders.has(r.id) && !lockedId(r.id) && r.y > q.y + q.h / 2 && overlapXZ(q, r)) todo.push(r);
         }
         if (nOut) toast(nOut === 1 ? 'Ho spostato il collo che occupava quel posto.' : `Ho risistemato i ${nOut} colli che occupavano quel posto.`);
       }
@@ -3374,6 +3440,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     const gs = selObjs();
     if (b.id === 'selClose') { multiMode = false; select([]); return; }
     if (b.id === 'selMulti') { multiMode = !multiMode; b.setAttribute('aria-pressed', multiMode); return; }
+    if (gs.some(isLocked)) { lockMsg(); return; }
     if (!gs.length) return;
     if (b.id === 'selAuto') { gs.forEach(g => delete S.fixed[g.userData.it.sig]); for (const k in S.fixed) if (S.fixed[k].frozen) delete S.fixed[k]; S.frozenKey = null; recompute(); return; }
     if (b.id === 'selGround') { toGround(gs.filter(g => g.userData.p.vano >= 0)); return; }
@@ -3396,6 +3463,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     if (up.lengthSq() < 1e-4) { camera.getWorldDirection(up); up.y = 0; }
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion); right.y = 0;
     const k = dirs[e.key], [ax, az] = snap(k === 'u' || k === 'd' ? up : right), sg = k === 'd' || k === 'l' ? -1 : 1, step = e.shiftKey ? 0.01 : 0.05;
+    if (selObjs().some(isLocked)) { lockMsg(); return; }
     if (!nudge) { const gs = selObjs(); riders = findRiders(gs); nudge = { list: gs.map(g => ({ g, sp: curSpec(g) })) }; }
     clearTimeout(nudge.t);
     // ogni collo scorre alla sua quota: se urta un collo vicino si ferma al contatto, non gli sale sopra
@@ -3441,6 +3509,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     return ray.ray.intersectPlane(plane, new THREE.Vector3());
   }
   function startDrag(g, e) {
+    if (selObjs().some(isLocked)) { lockMsg(); return false; }
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -g.position.y);
     const p0 = rayPoint(e, plane); if (!p0) return false;
     riders = findRiders(selObjs());
@@ -3476,7 +3545,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     if (d.moved && d.list) commit(d.list);
   }
   function renderFixNote() {
-    const fixedP = P.placements.filter(p => p.fixed && !(S.fixed[P.byId.get(p.id)?.sig] || {}).frozen), nG = P.groundPl.length;
+    const fixedP = P.placements.filter(p => { const f = S.fixed[P.byId.get(p.id)?.sig] || {}; return p.fixed && !f.frozen && !f.locked; }), nG = P.groundPl.length;
     const box = $('#fixNote');
     if (!fixedP.length && !nG) { box.hidden = true; return; }
     let clash = 0, high = 0;
@@ -3494,7 +3563,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     box.hidden = false; box.classList.toggle('alert', !!warn);
     box.innerHTML = `${esc(parts)}${warn ? ': ' + esc(warn) : ''}. <button class="link" id="fixReset">Rimetti tutto in automatico</button>`;
   }
-  $('#fixNote').addEventListener('click', e => { if (e.target.id === 'fixReset') { S.fixed = {}; S.frozenKey = null; recompute(); } });
+  $('#fixNote').addEventListener('click', e => { if (e.target.id === 'fixReset') { for (const k in S.fixed) if (!S.fixed[k].locked) delete S.fixed[k]; S.frozenKey = null; recompute(); } });
 
   let pickQ = false;
   canvas.addEventListener('pointermove', e => {
