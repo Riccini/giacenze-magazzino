@@ -771,7 +771,7 @@ const Lib = (() => {
       if (!cap) stima = true;
       if (bell && !bellL) bellL = Math.round(Math.min(300, Math.max(80, od * 0.45)));
       if (bell && !bellD) bellD = Math.round(od * 1.08);
-      const palW = k.fg === 'PE' ? 1.2 : autoPalW(cap, od, bell ? od * 1.03 : od);
+      const palW = k.fg === 'PE' ? 1.2 : autoPalW(cap, od, od);
       return { od, idm, cap, palW, palH: null, bellL, bellD, hex, stima, palStima: k.fg !== 'PE' };
     }
     const tk = dn + '|' + k.len;
@@ -1057,8 +1057,8 @@ const Lib = (() => {
   /* ---------- 8. Dalle righe d'ordine ai colli ---------- */
   function dimsFor(key, dims) {
     const o = dims[key] || {}, d = { ...defaultDims(key), ...o };
-    if (key[0] === 'B' && d.rows && d.rows.length) { const od = d.od / 1000, sp = d.bellL > 0 ? od * 1.03 : od; d.cap = d.rows.reduce((a, b) => a + b, 0); d.perRow = Math.max(...d.rows); d.palW = Math.max(o.palW || 0, widthFor(rowsExt(d.rows), sp, woodOf(d))); }
-    else if (key[0] === 'B' && d.perRow > 0) { const od = d.od / 1000; d.palW = Math.max(o.palW || 0, widthFor(Math.round(d.perRow), d.bellL > 0 ? od * 1.03 : od, woodOf(d))); }
+    if (key[0] === 'B' && d.rows && d.rows.length) { const od = d.od / 1000, sp = od; d.cap = d.rows.reduce((a, b) => a + b, 0); d.perRow = Math.max(...d.rows); d.palW = Math.max(o.palW || 0, widthFor(rowsExt(d.rows), sp, woodOf(d))); }
+    else if (key[0] === 'B' && d.perRow > 0) { const od = d.od / 1000; d.palW = Math.max(o.palW || 0, widthFor(Math.round(d.perRow), od, woodOf(d))); }
     return d;
   }
   function buildItems(orders, dims, cfg) {
@@ -1136,7 +1136,7 @@ const Lib = (() => {
       for (const [ri, ps] of byRiga) {
         ps.sort((a, b) => b.guests.length - a.guests.length);
         const p0 = ps[0], dm = dimsFor(p0.key, dims);
-        const sp = Math.max(p0.od, p0.bellD ? p0.od * 1.03 : p0.od);
+        const sp = p0.od; // ingombro = diametro nominale (i bicchieri sono alternati, non contano)
         const cap = capFor(dm, sp, p0.hex), cFull = rowC(dm, sp), row = o.righe[ri];
         // bancale singolo: se le barre sono meno del bancale pieno i legni si tagliano su misura
         const one = (pcs) => {
@@ -1527,7 +1527,7 @@ const Lib = (() => {
     MAN: { s: 'Inserito da te', n: 'Inserito o modificato da te', d: 'articoli aggiunti, valori cambiati nell\'elenco o importati da Excel' },
   };
   function palletGeom(dm) {
-    const od = dm.od / 1000, sp = dm.bellL > 0 ? od * 1.03 : od, hex = dm.hex !== false;
+    const od = dm.od / 1000, sp = od, hex = dm.hex !== false;
     const cap = capFor(dm, sp, hex), w = dm.palW || 1.2, c = rowC(dm, sp);
     const lay = layoutLayers([{ sp, c, rows: dm.rows, pieces: new Array(Math.max(1, cap)).fill(null) }], w, hex, woodOf(dm));
     const counts = []; lay.pos.forEach(q => { counts[q.row] = (counts[q.row] || 0) + 1; });
