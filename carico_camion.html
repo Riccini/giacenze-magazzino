@@ -1216,11 +1216,12 @@ const Lib = (() => {
     const dx = cx - Math.max(x, Math.min(cx, x + lx)), dz = cz - Math.max(z, Math.min(cz, z + lz));
     return dx * dx + dz * dz < r * r - 1e-6;
   }
-  function xzOver(p, q) {
-    if (p.shape === 'cyl' && q.shape === 'cyl') { const d = Math.hypot(p.cx - q.cx, p.cz - q.cz); return d < p.r + q.r - 1e-4; }
-    if (p.shape === 'cyl') return circRect(p.cx, p.cz, p.r - 1e-4, q.x, q.z, q.lx, q.lz);
-    if (q.shape === 'cyl') return circRect(q.cx, q.cz, q.r - 1e-4, p.x, p.z, p.lx, p.lz);
-    return p.x < q.x + q.lx - EPS && p.x + p.lx > q.x + EPS && p.z < q.z + q.lz - EPS && p.z + p.lz > q.z + EPS;
+  function xzOver(p, q, tol = 0) {
+    const t = Math.max(1e-4, tol), e = Math.max(EPS, tol);
+    if (p.shape === 'cyl' && q.shape === 'cyl') { const d = Math.hypot(p.cx - q.cx, p.cz - q.cz); return d < p.r + q.r - t; }
+    if (p.shape === 'cyl') return circRect(p.cx, p.cz, p.r - t, q.x, q.z, q.lx, q.lz);
+    if (q.shape === 'cyl') return circRect(q.cx, q.cz, q.r - t, p.x, p.z, p.lx, p.lz);
+    return p.x < q.x + q.lx - e && p.x + p.lx > q.x + e && p.z < q.z + q.lz - e && p.z + p.lz > q.z + e;
   }
   const rightOf = p => p.shape === 'cyl' ? p.cx + p.r : p.x + p.lx;
 
@@ -1444,7 +1445,7 @@ const Lib = (() => {
           : { shape: 'box', x: cx - bb.hx, z: cz - bb.hz, lx: 2 * bb.hx, lz: 2 * bb.hz, h: bb.h, o: 'free', tilt: sp.tilt, yaw: sp.yaw, top: false };
       }
       let base = 0, below = null;
-      for (const q of out[sp.vano]) if (xzOver(p, q) && topFor(it, q) > base) { base = topFor(it, q); below = q; }
+      for (const q of out[sp.vano]) if (xzOver(p, q, 0.005) && topFor(it, q) > base) { base = topFor(it, q); below = q; }
       p.y = base;
       if (below && below.shape === 'cyl' && p.shape === 'cyl') below.covered = true;
       out[sp.vano].push({ ...p, id: it.id, kind: it.kind, seq: it.seq, fixed: true, wT: it.wood ? it.wood.t : undefined });
@@ -1806,7 +1807,7 @@ const FIREBASE_DOC = 'carico-camion/database';
       </article>`;
     }).join('') + `<p class="hint">Il 1° scarico viene caricato per ultimo e resta verso le porte. Usa le frecce per cambiare la sequenza. Più ordini con «Scarico unico» si scaricano insieme.</p>`;
   }
-  const volP = p => p.shape === 'cyl' ? Math.PI * p.r * p.r * p.h : p.o === 'bar' ? p.lx * p.lz * p.h : Math.PI * (p.h / 2) * (p.h / 2) * (p.o === 'standX' ? p.lx : p.lz);
+  const volP = p => p.shape === 'cyl' ? Math.PI * p.r * p.r * p.h : p.o === 'bar' ? p.lx * p.lz * p.h : Math.PI * (p.h / 2) * (p.h / 2) * (p.o === 'standX' ? p.lx : p.o === 'standZ' ? p.lz : Math.min(p.lx, p.lz)); // rotolo in piedi: spessore = lato più corto
   function renderStats() {
     const totL = P.vani.reduce((s, v) => s + v.L, 0), used = P.used.reduce((a, b) => a + b, 0);
     const vol = P.placements.reduce((s, p) => s + volP(p), 0), volT = P.vani.reduce((s, v) => s + v.L * v.W * v.H, 0);
@@ -3297,6 +3298,29 @@ const FIREBASE_DOC = 'carico-camion/database';
   function fitInside(list) {
     const exclude = new Set(list.map(m => m.g.userData.it.id)), posed = [], out = [];
     let moved = 0;
+    if (list.length > 1) {
+      // prova: il gruppo così com'è, appoggiato su ciò che trova
+      const tryP = [];
+      const over = list.slice().sort((a, b) => (a.sp.yHint || 0) - (b.sp.yHint || 0)).some(m => {
+        if (m.sp.vano < 0) return false;
+        const it = m.g.userData.it, y = restY(it, m.sp, exclude, tryP), fp = footprint(it, m.sp);
+        tryP.push({ ...plOf(it, m.sp, y), id: it.id });
+        return y + fp.h > P.vani[m.sp.vano].H + 0.005 || (it.aTerra && y > 0.005);
+      });
+      if (over) {
+        // non ci sta sopra: i colli che occupano quel posto (e quelli appoggiati su di loro) vengono risistemati altrove
+        const mine = list.filter(m => m.sp.vano >= 0).map(m => ({ ...plOf(m.g.userData.it, m.sp, 0), vano: m.sp.vano }));
+        const todo = P.placements.filter(q => !exclude.has(q.id) && !riders.has(q.id) && mine.some(a => a.vano === q.vano && overlapXZ(a, q)));
+        let nOut = 0;
+        while (todo.length) {
+          const q = todo.pop(); if (riders.has(q.id)) continue;
+          riders.add(q.id); nOut++;
+          const sig = P.byId.get(q.id)?.sig; if (sig) delete S.fixed[sig];
+          for (const r of P.placements) if (r.vano === q.vano && !exclude.has(r.id) && !riders.has(r.id) && r.y > q.y + q.h / 2 && overlapXZ(q, r)) todo.push(r);
+        }
+        if (nOut) toast(nOut === 1 ? 'Ho spostato il collo che occupava quel posto.' : `Ho risistemato i ${nOut} colli che occupavano quel posto.`);
+      }
+    }
     list.slice().sort((a, b) => (a.sp.yHint || 0) - (b.sp.yHint || 0)).forEach(m => {
       const it = m.g.userData.it;
       if (m.sp.vano >= 0) {
@@ -3345,12 +3369,11 @@ const FIREBASE_DOC = 'carico-camion/database';
     clearTimeout(nudge.t);
     // ogni collo scorre alla sua quota: se urta un collo vicino si ferma al contatto, non gli sale sopra
     const ex = new Set(nudge.list.map(m => m.g.userData.it.id));
-    nudge.list.forEach(m => {
-      const it = m.g.userData.it, wx = (m.sp.vano >= 0 ? vanoX[m.sp.vano] + m.sp.cx : m.sp.cx) + ax * sg * step, wz = (m.sp.vano >= 0 ? m.sp.cz - S.cfg.W / 2 : m.sp.cz) + az * sg * step;
-      const yh = m.sp.yHint, sp = specAt(it, wx, wz, m.sp); sp.yHint = yh;
-      if (sp.vano === m.sp.vano && restY(it, sp, ex, []) > restY(it, m.sp, ex, []) + 0.005) return;
-      m.sp = sp;
-    });
+    const ctr = nudge.list.map(m => ({ g: m.g, sp: m.sp, wx: m.sp.vano >= 0 ? vanoX[m.sp.vano] + m.sp.cx : m.sp.cx, wz: m.sp.vano >= 0 ? m.sp.cz - S.cfg.W / 2 : m.sp.cz }));
+    const [ddx, ddz] = groupDelta(ctr, ax * sg * step, az * sg * step);
+    const next = ctr.map(c => { const it = c.g.userData.it, yh = c.sp.yHint, sp = specAt(it, c.wx + ddx, c.wz + ddz, c.sp); sp.yHint = yh; return sp; });
+    const blocked = nudge.list.some((m, i) => next[i].vano === m.sp.vano && restY(m.g.userData.it, next[i], ex, []) > restY(m.g.userData.it, m.sp, ex, []) + 0.005);
+    if (!blocked) nudge.list.forEach((m, i) => { m.sp = next[i]; });
     poseGroup(nudge.list);
     nudge.t = setTimeout(() => { const l = nudge.list; nudge = null; commit(l); }, 450);
   });
@@ -3396,9 +3419,22 @@ const FIREBASE_DOC = 'carico-camion/database';
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignora */ }
     return true;
   }
+  // più colli spostati insieme dentro il camion: il gruppo si muove compatto e si ferma quando il primo tocca una parete
+  function groupDelta(ms, dx, dz) {
+    const inT = ms.filter(m => m.sp.vano >= 0); if (inT.length < 2) return [dx, dz];
+    const X0 = vanoX[0], X1 = vanoX[P.vani.length - 1] + P.vani[P.vani.length - 1].L, W = S.cfg.W;
+    let lo = -Infinity, hi = Infinity, zlo = -Infinity, zhi = Infinity;
+    for (const m of inT) {
+      const fp = footprint(m.g.userData.it, m.sp);
+      lo = Math.max(lo, X0 + fp.hx - m.wx); hi = Math.min(hi, X1 - fp.hx - m.wx);
+      zlo = Math.max(zlo, -W / 2 + fp.hz - m.wz); zhi = Math.min(zhi, W / 2 - fp.hz - m.wz);
+    }
+    return [clamp(dx, Math.min(lo, 0), Math.max(hi, 0)), clamp(dz, Math.min(zlo, 0), Math.max(zhi, 0))];
+  }
   function moveDrag(e) {
     const pt = rayPoint(e, drag.plane); if (!pt) return;
-    const dx = pt.x - drag.p0.x, dz = pt.z - drag.p0.z;
+    let dx = pt.x - drag.p0.x, dz = pt.z - drag.p0.z;
+    if (drag.members.length > 1 && truckVanoAt(pt.x, pt.z) >= 0) [dx, dz] = groupDelta(drag.members.map(m => ({ g: m.g, sp: m.sp0, wx: m.wx, wz: m.wz })), dx, dz);
     drag.list = drag.members.map(m => ({ g: m.g, sp: specAt(m.g.userData.it, m.wx + dx, m.wz + dz, m.sp0) }));
     drag.list.forEach((m, i) => { m.sp.yHint = drag.members[i].sp0.yHint; });
     drag.moved = true; poseGroup(drag.list);
