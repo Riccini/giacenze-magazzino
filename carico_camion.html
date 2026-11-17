@@ -1418,27 +1418,47 @@ const Lib = (() => {
     const e = a.map(v => R * Math.sqrt(Math.max(0, 1 - v * v)) + t * Math.abs(v));
     return { flat: false, hx: e[0], h: 2 * e[1], hz: e[2] };
   }
+  // Colli con posizione fissata (a mano o congelata). Una posizione che non sta più nel mezzo (fuori dalle pareti, oltre
+  // l'altezza utile, senza appoggio sotto il centro) viene scartata: quel collo torna in automatico (elenco in out.dropped).
   function fixedPlacements(items, vani, opt) {
     const out = vani.map(() => []);
-    const specs = [];
+    const specs = [], dropped = [];
+    out.dropped = dropped;
     for (const it of items) {
       const sp = opt.fixed && opt.fixed.get(it.id);
-      if (!sp || !vani[sp.vano]) continue;
+      if (!sp || sp.vano === -1) continue;
+      if (!vani[sp.vano]) { dropped.push(it.id); continue; }
       specs.push({ it, sp });
     }
+    // il collo deve poggiare sul fondo, oppure su colli alla stessa quota che stanno sotto il suo centro
+    const supported = (it, p, list) => {
+      if (p.y < 0.01) return true;
+      const sup = list.filter(q => xzOver(p, q, 0.005) && Math.abs(topFor(it, q) - p.y) < 0.03);
+      if (!sup.length) return false;
+      const cx = p.shape === 'cyl' ? p.cx : p.x + p.lx / 2, cz = p.shape === 'cyl' ? p.cz : p.z + p.lz / 2;
+      const x0 = Math.min(...sup.map(q => q.x)), x1 = Math.max(...sup.map(q => q.x + q.lx)), z0 = Math.min(...sup.map(q => q.z)), z1 = Math.max(...sup.map(q => q.z + q.lz));
+      return cx >= x0 - 0.01 && cx <= x1 + 0.01 && cz >= z0 - 0.01 && cz <= z1 + 0.01;
+    };
+    const inside = (p, V) => p.x >= -0.02 && p.z >= -0.02 && p.x + p.lx <= V.L + 0.02 && p.z + p.lz <= V.W + 0.02 && p.y + p.h <= V.H + 0.01;
     specs.sort((a, b) => (a.sp.yHint || 0) - (b.sp.yHint || 0));
     for (const { it, sp } of specs) {
       const V = vani[sp.vano];
       // collo lasciato esattamente dov'era (congelato dopo una modifica a mano di un altro collo)
-      if (sp.frozen && sp.pl) { out[sp.vano].push({ ...sp.pl, id: it.id, kind: it.kind, seq: it.seq, fixed: true }); continue; }
+      if (sp.frozen && sp.pl) {
+        const p = { ...sp.pl, id: it.id, kind: it.kind, seq: it.seq, fixed: true };
+        if (inside(p, V) && supported(it, p, out[sp.vano])) out[sp.vano].push(p); else dropped.push(it.id);
+        continue;
+      }
       let p;
       if (it.kind === 'bar') {
         const rot = !!it.generic && Math.round(sp.yaw || 0) % 180 === 90;
         const lx = rot ? it.lz : it.lx, lz = rot ? it.lx : it.lz;
+        if (sp.cx - lx / 2 < -0.02 || sp.cx + lx / 2 > V.L + 0.02 || sp.cz - lz / 2 < -0.02 || sp.cz + lz / 2 > V.W + 0.02) { dropped.push(it.id); continue; }
         const x = Math.max(0, Math.min(V.L - lx, sp.cx - lx / 2)), z = Math.max(0, Math.min(V.W - lz, sp.cz - lz / 2));
         p = { shape: 'box', x, z, lx, lz, h: it.h, o: 'bar', loose: !!it.loose, top: it.generic ? it.stackable !== false : true, rot };
       } else {
         const bb = rollAABB(it, sp.tilt || 0, sp.yaw || 0, opt);
+        if (sp.cx - bb.hx < -0.02 || sp.cx + bb.hx > V.L + 0.02 || sp.cz - bb.hz < -0.02 || sp.cz + bb.hz > V.W + 0.02) { dropped.push(it.id); continue; }
         const cx = Math.max(bb.hx, Math.min(V.L - bb.hx, sp.cx)), cz = Math.max(bb.hz, Math.min(V.W - bb.hz, sp.cz));
         p = bb.flat
           ? { shape: 'cyl', cx, cz, r: bb.r, h: bb.h, x: cx - bb.r, z: cz - bb.r, lx: 2 * bb.r, lz: 2 * bb.r, o: 'flat', top: false }
@@ -1447,6 +1467,7 @@ const Lib = (() => {
       let base = 0, below = null;
       for (const q of out[sp.vano]) if (xzOver(p, q, 0.005) && topFor(it, q) > base) { base = topFor(it, q); below = q; }
       p.y = base;
+      if (p.y + p.h > V.H + 0.01 || !supported(it, p, out[sp.vano])) { dropped.push(it.id); continue; }
       if (below && below.shape === 'cyl' && p.shape === 'cyl') below.covered = true;
       out[sp.vano].push({ ...p, id: it.id, kind: it.kind, seq: it.seq, fixed: true, wT: it.wood ? it.wood.t : undefined });
     }
@@ -1454,7 +1475,7 @@ const Lib = (() => {
   }
   function plan(items, vani, opt) {
     const fixedBy = fixedPlacements(items, vani, opt);
-    const fixedIds = new Set(fixedBy.flat().map(p => p.id));
+    const fixedIds = new Set(fixedBy.flat().map(p => p.id)), dropped = fixedBy.dropped;
     items = items.filter(i => !fixedIds.has(i.id) && !(opt.fixed && opt.fixed.get(i.id) && opt.fixed.get(i.id).vano === -1));
     const modes = opt.orient === 'auto' ? ['flat', 'stand', 'mix'] : [opt.orient];
     const hasFloor = items.some(i => i.aTerra);
@@ -1481,6 +1502,7 @@ const Lib = (() => {
       if (!best || res.rest.length < best.rest.length || (res.rest.length === best.rest.length &&
         (volOut < best.volOut - 1e-6 || (Math.abs(volOut - best.volOut) <= 1e-6 && usedTot < best.usedTot - 0.25)))) best = res;
     }
+    best.dropped = dropped;
     return best;
   }
 
@@ -1689,7 +1711,16 @@ const FIREBASE_DOC = 'carico-camion/database';
       const n = occ.get(base) || 0; occ.set(base, n + 1); it.sig = base + '|' + n;
       if (S.fixed[it.sig] && S.fixed[it.sig].vano < vani.length) fixed.set(it.id, S.fixed[it.sig]);
     });
-    const res = Lib.plan(items, vani, { orient: S.cfg.orient, rispettaScarico: true, div: S.cfg.div, cV: S.cfg.cV / 100, cL: S.cfg.cL / 100, fixed });
+    const popt = { orient: S.cfg.orient, rispettaScarico: true, div: S.cfg.div, cV: S.cfg.cV / 100, cL: S.cfg.cL / 100, fixed };
+    let res = Lib.plan(items, vani, popt);
+    // posizioni fissate che non stanno più nel mezzo (cambio di mezzo, colli tolti da sotto…): tornano in automatico.
+    // Tolta una posizione, chi le stava sopra può restare senza appoggio: si ripete finché tutto è stabile.
+    let nMan = 0;
+    for (let k = 0; k < 8 && res.dropped && res.dropped.length; k++) {
+      for (const id of res.dropped) { const it = items.find(i => i.id === id); if (!it) continue; if (S.fixed[it.sig] && !S.fixed[it.sig].frozen) nMan++; delete S.fixed[it.sig]; fixed.delete(id); }
+      res = Lib.plan(items, vani, popt);
+    }
+    if (nMan) setTimeout(() => toast(nMan === 1 ? 'Un collo messo a mano non stava più nel mezzo: l’ho rimesso in automatico.' : `${nMan} colli messi a mano non stavano più nel mezzo: li ho rimessi in automatico.`, 'warn'), 50);
     const byId = new Map(items.map(i => [i.id, i]));
     const placedIds = new Set(res.placements.map(p => p.id));
     P = { vani, items, info, byId, placedIds, ...res, groundPl: [], groundIds: new Set() };
