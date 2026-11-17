@@ -2539,23 +2539,29 @@ const FIREBASE_DOC = 'carico-camion/database';
       const arr = String(el.value).split(/[^0-9]+/).filter(Boolean).map(Number);
       if (!arr.length) delete cur.rows;
       else if (arr.length > 40 || arr.some(v => v < 1 || v > 60)) { toast('Scrivi le barre di ogni fila separate da uno spazio, per esempio 7 7 7 6.', 'warn'); el.value = cellVal(k, 'rows')[0]; return; }
-      else { cur.rows = arr; delete cur.perRow; delete cur.palW; cur.cap = arr.reduce((a, b) => a + b, 0); }
+      else { cur.rows = arr; delete cur.perRow; cur.cap = arr.reduce((a, b) => a + b, 0); } // la larghezza scritta a mano resta
     }
     else {
       const v = parseFloat(String(el.value).replace(',', '.'));
       if (['legB', 'legT', 'legS'].includes(f) && !(v > 0)) delete cur[f];
       else if (['legB', 'legT', 'legS'].includes(f) && v > 30) { toast('Lo spessore dei legni va scritto in centimetri (per esempio 8).', 'warn'); el.value = cellVal(k, f)[0]; return; }
       else if (['cap', 'palH', 'perRow'].includes(f) && !(v > 0)) { if (f === 'perRow') delete cur.perRow; else cur[f] = null; }
+      else if (f === 'palW' && !(v > 0)) delete cur.palW; // larghezza vuota: torna quella calcolata
       else if (v > 0) cur[f] = ['cap', 'perRow'].includes(f) ? Math.round(v) : v;
       else { el.value = cellVal(k, f)[0]; return; }
-      // larghezza e barre per fila sono legate: vale l'ultima che scrivi
+      // con la composizione scritta, la larghezza si cambia senza toccare la composizione (le barre restano centrate)
       if (f === 'perRow' && cur.perRow) delete cur.palW;
-      if (f === 'palW') delete cur.perRow;
-      if (['cap', 'perRow', 'palW'].includes(f)) delete cur.rows;
+      if (f === 'palW' && !(cur.rows && cur.rows.length)) delete cur.perRow;
+      if (['cap', 'perRow'].includes(f)) delete cur.rows;
     }
     if (['od', 'idm', 'cap', 'D', 'dInt', 'Wd'].includes(f)) cur.stima = false;
     if (['palW', 'palH', 'cap', 'perRow'].includes(f)) cur.palStima = false;
     S.dims[k] = cur; recompute(); syncRow(tr, k);
+    if (f === 'palW' && !(cur.palW > 0)) el.value = cellVal(k, 'palW')[0];
+    if (f === 'palW' && cur.palW > 0 && dimsOf(k).palW > cur.palW + 0.005) {
+      toast(`Con la composizione ${cur.rows.join(' ')} il bancale deve essere largo almeno ${fmt(dimsOf(k).palW)} m: uso questa misura.`, 'warn');
+      delete cur.palW; S.dims[k] = cur; recompute(); syncRow(tr, k); el.value = cellVal(k, 'palW')[0];
+    }
   });
   // Invio e frecce su/giù: stessa colonna, riga sopra o sotto
   $('#dimsBody').addEventListener('keydown', e => {
