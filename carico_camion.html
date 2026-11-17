@@ -58,6 +58,7 @@ main{flex:1; min-height:0; display:grid; grid-template-columns:minmax(320px,390p
 .m-art{white-space:normal!important; min-width:240px; font-size:13px}
 .man-err{margin:10px 0 0}
 .sel{position:absolute; left:10px; bottom:10px; width:min(330px,calc(100% - 20px)); background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px 12px; box-shadow:0 6px 18px rgba(0,0,0,.18); font-size:13.5px; z-index:3}
+.marquee{position:absolute; border:1px solid var(--accent); background:color-mix(in srgb, var(--accent) 14%, transparent); pointer-events:none; z-index:6}
 .sel-h{display:flex; justify-content:space-between; align-items:center; gap:8px}
 .sel-h .x{border:0; background:none; cursor:pointer; font-size:14px; padding:2px 4px; color:var(--muted)}
 .sel p{margin:4px 0 8px; color:var(--muted)}
@@ -376,7 +377,7 @@ body.drag .veil{display:grid}
           <div class="sel-q"><button class="btn sm" data-q="flat">Sdraiato</button><button class="btn sm" data-q="x">In piedi verso cabina</button><button class="btn sm" data-q="z">In piedi di taglio</button><button class="btn sm" data-q="r90">Ruota di 90°</button></div>
         </div>
         <div id="selGen" class="sel-q" hidden><button class="btn sm" data-q="rg">Ruota di 90°</button></div>
-        <p class="sel-hint">Trascina per spostare, anche fuori dal camion per metterlo a terra. Con Maiusc o Ctrl + clic aggiungi altri colli e li sposti insieme.</p>
+        <p class="sel-hint">Trascina o usa le frecce per spostare (5 cm, con Maiusc 1 cm), anche fuori dal camion per metterlo a terra. Con Maiusc o Ctrl + clic aggiungi altri colli; con Ctrl + trascina su uno spazio vuoto li selezioni in un riquadro.</p>
         <div class="sel-q"><button class="btn sm" id="selGround">Metti a terra</button><button class="btn sm" id="selAuto" hidden>Rimetti in automatico</button><button class="btn sm tgl" id="selMulti" aria-pressed="false">Seleziona più colli</button></div>
       </div>
       <div class="views" id="views">
@@ -795,6 +796,7 @@ const Lib = (() => {
     const dInt = holeFor(D, Wd, dn, k.len);
     let orient = 'auto', aTerra = false;
     if (D > 2.6) { orient = 'standZ'; aTerra = true; } else if (k.fg === 'PE' && dn === 90 && k.len === 50) { orient = 'standX'; aTerra = true; }
+    else orient = dn >= 63 ? 'stand' : 'flat'; // polietilene: dal DN 63 in piedi, fino al DN 50 sdraiato
     return { D, dInt, Wd, orient, aTerra, stima };
   }
 
@@ -951,39 +953,68 @@ const Lib = (() => {
   }
   // larghezza occupata dalle barre di una composizione, in diametri (tiene conto dello sfalsamento)
   const rowsExt = rows => rowPlan(rows, rows.reduce((x, y) => x + y, 0)).ext;
+  // Riempimento del bancale per gravità: ogni tubo scende finché tocca il fondo o i tubi già posati, mai sospeso nel vuoto.
+  // Senza composizione il tubo va nel posto libero più basso (a parità, il più a sinistra): così si riempie dal basso e,
+  // a nido d'ape, i tubi cadono negli incavi. Con la composizione scritta nel database le file sono centrate come indicato.
   function layoutLayers(layers, palW, hex, w = W0) {
-    const Wi = palW - 2 * w.s, pos = [];
-    let top = w.b, below = [], below2 = [];
-    // posa una fila: scende finché i tubi toccano quelli sotto (negli incavi se è sfalsata, uno sull'altro se è allineata)
-    const lay = (zs, d, L, row, take) => {
-      let cy = (below.length ? Math.min(...below.map(q => q.y - q.d / 2)) : w.b) + d / 2;
-      if (!below.length) cy = top + d / 2;
-      for (const z of zs) for (const q of below.concat(below2)) {
-        const R = (d + q.d) / 2, dz = Math.abs(z - q.z);
-        if (dz < R - 1e-9) cy = Math.max(cy, q.y + Math.sqrt(R * R - dz * dz));
-      }
-      below2 = below; below = [];
-      zs.forEach((z, j) => { pos.push({ y: cy, z, p: take(), col: j, row }); below.push({ y: cy, z, d }); });
-      top = Math.max(top, cy + d / 2);
-    };
+    const Wi = palW - 2 * w.s, pos = [], placed = [];
+    let top = w.b;
+    const contact = (z, d, q) => { const R = (d + q.d) / 2, dz = Math.abs(z - q.z); return dz < R - 1e-9 ? q.y + Math.sqrt(R * R - dz * dz) : -Infinity; };
+    const dropY = (z, d) => { let y = w.b + d / 2; for (const q of placed) { const c = contact(z, d, q); if (c > y) y = c; } return y; };
+    const put = (y, z, d, p) => { placed.push({ y, z, d }); pos.push({ y, z, p }); top = Math.max(top, y + d / 2); };
     for (const L of layers) {
-      const d = L.sp, c = L.c > 0 ? L.c : Math.max(1, Math.floor((Wi + 1e-6) / d));
-      let row = 0, i = 0;
-      const take = () => L.pieces[i++];
+      const d = L.sp; let i = 0;
       if (L.rows && L.rows.length) {
-        // composizione scelta a mano: ogni fila ha il suo numero di barre, centrata e sfalsata rispetto a quella sotto
-        const pl = rowPlan(L.rows, L.pieces.length);
-        pl.ns.forEach((n, r) => { const z0 = -(n * d) / 2 + d / 2 + pl.sh[r] * d; lay(Array.from({ length: n }, (_, j) => z0 + j * d), d, L, r, take); });
+        // composizione: file centrate; l'ultima fila incompleta occupa i posti centrali della fila piena
+        for (let r = 0; i < L.pieces.length; r++) {
+          const m = Math.max(1, L.rows[Math.min(r, L.rows.length - 1)]), n = Math.min(m, L.pieces.length - i), j0 = Math.floor((m - n) / 2);
+          const zs = Array.from({ length: n }, (_, j) => -(m * d) / 2 + d / 2 + (j0 + j) * d);
+          const ys = zs.map(z => dropY(z, d));
+          zs.forEach((z, j) => put(ys[j], z, d, L.pieces[i++]));
+        }
         continue;
       }
+      let zLo = -Wi / 2 + d / 2, zHi = Wi / 2 - d / 2;
+      if (zHi < zLo) zLo = zHi = 0;
+      const cand = new Map();
+      const add = z => {
+        if (z < zLo - 1e-6 || z > zHi + 1e-6) return;
+        z = Math.max(zLo, Math.min(zHi, z));
+        const k = Math.round(z * 1e4); if (!cand.has(k)) cand.set(k, { z, y: dropY(z, d) });
+      };
+      // posti del tubo d appoggiato contemporaneamente a due tubi a e b (incavo)
+      const valley = (a, b) => {
+        const ra = (d + a.d) / 2, rb = (d + b.d) / 2, dz = b.z - a.z, dy = b.y - a.y, D = Math.hypot(dz, dy);
+        if (D < 1e-9 || D > ra + rb) return;
+        const t = (ra * ra - rb * rb + D * D) / (2 * D), hh = Math.sqrt(Math.max(0, ra * ra - t * t));
+        const mz = a.z + t * dz / D, s1 = mz - hh * dy / D, s2 = mz + hh * dy / D;
+        add(s1); add(s2);
+      };
+      if (hex) {
+        for (let z = zLo; z <= zHi + 1e-6; z += d / 2) add(z);
+        add(zHi);
+        for (const q of placed) { add(q.z - (d + q.d) / 2); add(q.z + (d + q.d) / 2); }
+        for (let x = 0; x < placed.length; x++) for (let y = x + 1; y < placed.length; y++) valley(placed[x], placed[y]);
+      } else {
+        // barre non a nido d'ape: colonne dritte
+        const c = L.c > 0 ? L.c : Math.max(1, Math.floor((Wi + 1e-6) / d)), z0 = -Wi / 2 + d / 2;
+        for (let j = 0; j < c; j++) add(Math.min(zHi, z0 + j * d));
+      }
       while (i < L.pieces.length) {
-        const off = hex && row % 2 === 1 && c > 1 ? d / 2 : 0;
-        const capRow = off ? (c * d + d / 2 <= Wi + 1e-6 ? c : c - 1) : c;
-        const n = Math.min(capRow, L.pieces.length - i), z0 = -Wi / 2 + d / 2 + off;
-        lay(Array.from({ length: n }, (_, j) => z0 + j * d), d, L, row, take);
-        row++;
+        let best = null;
+        for (const c of cand.values()) if (!best || c.y < best.y - 1e-6 || (c.y < best.y + 1e-6 && c.z < best.z)) best = c;
+        const q = { y: best.y, z: best.z, d };
+        put(q.y, q.z, d, L.pieces[i++]);
+        for (const c of cand.values()) { const v = contact(c.z, d, q); if (v > c.y) c.y = v; }
+        if (hex) {
+          add(q.z - d); add(q.z + d);
+          for (const o of placed) if (o !== placed[placed.length - 1] && Math.abs(o.z - q.z) <= d + o.d / 2 + d / 2 && Math.abs(o.y - q.y) <= d + o.d) valley(o, placed[placed.length - 1]);
+        }
       }
     }
+    // file (livelli) e posizione nella fila, per il disegno e per la composizione mostrata nel database
+    pos.forEach((q, k) => { const d = placed[k].d; q.row = Math.max(0, Math.round((q.y - w.b - d / 2) / (hex ? d * 0.866 : d))); });
+    pos.slice().sort((x, y) => x.z - y.z).forEach((q, k) => { q.col = k; });
     return { pos, h: top + w.t };
   }
   const widthFor = (c, sp, w = W0) => Math.ceil((c * sp + 2 * w.s) * 100 - 1e-6) / 100;
@@ -1515,6 +1546,7 @@ const Lib = (() => {
       else { set('D', 'FO', 'ricavato da un formato simile'); set('Wd', 'FO', 'ricavato da un formato simile'); }
       set('dInt', 'FO', 'stimato dai metri di tubo avvolti');
       if (dm && dm.aTerra) { set('orient', 'TU', 'in piedi sul pianale'); set('aTerra', 'TU', 'troppo grande per stare sopra altro'); }
+      else set('orient', 'TU', dn >= 63 ? 'polietilene dal DN 63: in piedi' : 'polietilene fino al DN 50: sdraiato');
     } else if (k.fg === 'CORR') {
       if (CORR_ROLL[tk]) { ['D', 'dInt', 'Wd'].forEach(f => set(f, 'TI17', 'tabella ingombri')); }
       else { ['D', 'dInt', 'Wd'].forEach(f => set(f, 'FO', 'ricavato dal formato da 50 m')); }
@@ -1760,7 +1792,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     const al = $('#alert');
     if (P.rest.length) {
       al.hidden = false;
-      al.textContent = `${P.rest.length} ${P.rest.length === 1 ? 'collo non entra' : 'colli non entrano'} in questo mezzo. Prova un mezzo più grande, un’altra sequenza di scarico o disposizione dei rotoli, oppure togli un ordine.`;
+      al.textContent = `${P.rest.length} ${P.rest.length === 1 ? 'collo non entra' : 'colli non entrano'} in questo mezzo: ${P.rest.length === 1 ? 'è a terra' : 'sono a terra'}, accanto al camion. Prova un mezzo più grande, un’altra sequenza di scarico o disposizione dei rotoli, oppure togli un ordine.`;
     } else al.hidden = true;
     const keys = new Set(P.info.filter(r => r.cls.key && r.nPezzi).map(r => r.cls.key));
     const est = [...keys].filter(k => { const d = dimsOf(k); return d.stima || d.palStima; }).length;
@@ -2893,7 +2925,8 @@ const FIREBASE_DOC = 'carico-camion/database';
     if (hoverBox) { scene.remove(hoverBox); hoverBox = null; }
     const colorOf = new Map(S.orders.map(o => [o.id, o.color]));
     objs = P.placements.map(p => { const it = P.byId.get(p.id); const g = makeObj(p, it, colorOf.get(it.orderId)); load.add(g); return g; });
-    gobjs = P.groundPl.map(p => { const it = P.byId.get(p.id); const g = makeObj(p, it, colorOf.get(it.orderId)); load.add(g); return g; });
+    layoutRest();
+    gobjs = P.groundPl.concat(P.restPl).map(p => { const it = P.byId.get(p.id); const g = makeObj(p, it, colorOf.get(it.orderId)); load.add(g); return g; });
     P.vani.forEach((v, i) => {
       const free = v.L - P.used[i]; if (free < 0.25) return;
       const m = new THREE.Mesh(new THREE.PlaneGeometry(free, S.cfg.W), new THREE.MeshBasicMaterial({ color: T.ok, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
@@ -3041,8 +3074,18 @@ const FIREBASE_DOC = 'carico-camion/database';
     return Math.abs(ax - bx) < a.lx / 2 + b.lx / 2 - 0.005 && Math.abs(az - bz) < a.lz / 2 + b.lz / 2 - 0.005;
   }
   const topOf = (it, q) => q.y + q.h - (it.kind === 'bar' && q.kind === 'bar' && !q.loose ? (q.wT ?? Lib.WOOD_T) : 0);
+  // colli appoggiati sopra a quelli che si stanno spostando: non sono un appoggio (verranno risistemati)
+  let riders = new Set();
+  function findRiders(gs) {
+    const out = new Set(), todo = gs.map(g => g.userData.p).filter(p => p && p.vano >= 0), ids = new Set(gs.map(g => g.userData.it.id));
+    while (todo.length) {
+      const b = todo.pop();
+      for (const q of P.placements) if (q.vano === b.vano && !out.has(q.id) && !ids.has(q.id) && q.y > b.y + b.h / 2 && overlapXZ(b, q)) { out.add(q.id); todo.push(q); }
+    }
+    return out;
+  }
   function restY(it, sp, exclude, posed) {
-    const pool = (sp.vano >= 0 ? P.placements.filter(p => p.vano === sp.vano) : P.groundPl).filter(p => !exclude.has(p.id)).concat(posed.filter(p => p.vano === sp.vano));
+    const pool = (sp.vano >= 0 ? P.placements.filter(p => p.vano === sp.vano) : P.groundPl.concat(P.restPl || [])).filter(p => !exclude.has(p.id) && !riders.has(p.id)).concat(posed.filter(p => p.vano === sp.vano));
     const me = plOf(it, sp, 0);
     let y = 0;
     for (const q of pool) if (q.id !== it.id && overlapXZ(me, q)) y = Math.max(y, topOf(it, q));
@@ -3113,12 +3156,14 @@ const FIREBASE_DOC = 'carico-camion/database';
     }
   }
   function commit(list) {
+    fitInside(list);
     const seen = new Set(list.map(m => m.g.userData.it.id));
     list.forEach(({ g, sp }) => {
       const it = g.userData.it;
       S.fixed[it.sig] = { vano: sp.vano, cx: r3(sp.cx), cz: r3(sp.cz), tilt: Math.round(sp.tilt || 0), yaw: Math.round(sp.yaw || 0) % 360, yHint: sp.yHint || 0 };
     });
     list.forEach(({ g }) => freezeSupports(g.userData.it, S.fixed[g.userData.it.sig], seen));
+    riders = new Set();
     recompute();
   }
   function select(sigs) { selSigs = new Set(sigs || []); refreshSel(); }
@@ -3156,17 +3201,76 @@ const FIREBASE_DOC = 'carico-camion/database';
     });
     $('#' + id).addEventListener('change', () => { const gs = selObjs(); if (gs.length === 1 && gs[0].userData.live) commit([{ g: gs[0], sp: gs[0].userData.live }]); });
   });
-  function toGround(gs) {
+  // posti a terra accanto al camion (lato destro) per i colli messi fuori a mano
+  function groundList(gs) {
     const W = S.cfg.W;
     let cur = vanoX[0];
     for (const p of P.groundPl) if (p.cz > 0) cur = Math.max(cur, p.x + p.lx + 0.3);
-    const list = gs.map(g => {
-      const sp = curSpec(g), fp = footprint(g.userData.it, sp);
+    return gs.map(m => {
+      const g = m.g || m, sp = m.sp || curSpec(g), fp = footprint(g.userData.it, sp);
       const out = { g, sp: { ...sp, vano: -1, cx: r3(cur + fp.hx), cz: r3(W / 2 + 0.6 + fp.hz), yHint: 0 } };
       cur += 2 * fp.hx + 0.3;
       return out;
     });
-    poseGroup(list); commit(list);
+  }
+  function toGround(gs) { const list = groundList(gs); poseGroup(list); commit(list); }
+  // colli che non entrano nel camion: a terra sul lato sinistro, in file lungo il camion
+  function layoutRest() {
+    P.restPl = [];
+    const W = S.cfg.W, x0 = vanoX[0], xEnd = vanoX[P.vani.length - 1] + P.vani[P.vani.length - 1].L;
+    let cur = x0, z0 = W / 2 + 0.6, depth = 0;
+    for (const it of P.rest) {
+      const sp = { vano: -1, cx: 0, cz: 0, tilt: 0, yaw: 0 }, fp = footprint(it, sp);
+      if (cur > x0 && cur + 2 * fp.hx > xEnd + 0.5) { cur = x0; z0 += depth + 0.4; depth = 0; }
+      sp.cx = r3(cur + fp.hx); sp.cz = r3(-(z0 + fp.hz)); cur += 2 * fp.hx + 0.3; depth = Math.max(depth, 2 * fp.hz);
+      P.restPl.push(plOf(it, sp, 0));
+    }
+  }
+  // posto libero dentro il camion più vicino a quello voluto, senza superare l'altezza utile
+  function freeSpot(it, sp, exclude, posed) {
+    const wx0 = sp.vano >= 0 ? vanoX[sp.vano] + sp.cx : sp.cx, wz0 = sp.vano >= 0 ? sp.cz - S.cfg.W / 2 : sp.cz;
+    let best = null;
+    P.vani.forEach((V, v) => {
+      const s1 = { ...sp, vano: v }, fp = footprint(it, s1);
+      if (2 * fp.hx > V.L + 1e-6 || 2 * fp.hz > V.W + 1e-6 || fp.h > V.H + 1e-6) return;
+      const pool = P.placements.filter(p => p.vano === v && !exclude.has(p.id) && !riders.has(p.id)).concat(posed.filter(p => p.vano === v));
+      const xs = new Set(), zs = new Set();
+      for (let x = fp.hx; x <= V.L - fp.hx + 1e-6; x += 0.05) xs.add(r3(x));
+      for (let z = fp.hz; z <= V.W - fp.hz + 1e-6; z += 0.05) zs.add(r3(z));
+      xs.add(r3(V.L - fp.hx)); zs.add(r3(V.W - fp.hz));
+      for (const q of pool) { xs.add(r3(q.x - fp.hx)); xs.add(r3(q.x + q.lx + fp.hx)); zs.add(r3(q.z - fp.hz)); zs.add(r3(q.z + q.lz + fp.hz)); }
+      const X = [...xs].filter(x => x >= fp.hx - 1e-6 && x <= V.L - fp.hx + 1e-6), Z = [...zs].filter(z => z >= fp.hz - 1e-6 && z <= V.W - fp.hz + 1e-6);
+      for (const cx of X) for (const cz of Z) {
+        const me = plOf(it, { ...s1, cx, cz }, 0);
+        let y = 0, ok = true;
+        for (const q of pool) if (overlapXZ(me, q)) { if (q.top === false) { ok = false; break; } y = Math.max(y, topOf(it, q)); }
+        if (!ok || y + fp.h > V.H + 0.005 || (it.aTerra && y > 0.005)) continue;
+        const score = Math.hypot(vanoX[v] + cx - wx0, cz - S.cfg.W / 2 - wz0) + y;
+        if (!best || score < best.score) best = { score, sp: { ...s1, cx, cz } };
+      }
+    });
+    return best && best.sp;
+  }
+  // prima di fissare uno spostamento: chi supererebbe l'altezza del mezzo va nel posto libero più vicino, altrimenti a terra
+  function fitInside(list) {
+    const exclude = new Set(list.map(m => m.g.userData.it.id)), posed = [], out = [];
+    let moved = 0;
+    list.slice().sort((a, b) => (a.sp.yHint || 0) - (b.sp.yHint || 0)).forEach(m => {
+      const it = m.g.userData.it;
+      if (m.sp.vano >= 0) {
+        const V = P.vani[m.sp.vano], fp = footprint(it, m.sp);
+        const y = restY(it, m.sp, exclude, posed);
+        if (y + fp.h > V.H + 0.005 || (it.aTerra && y > 0.005)) {
+          const alt = freeSpot(it, m.sp, exclude, posed);
+          if (alt) { m.sp = alt; moved++; } else { out.push(m); return; }
+        }
+      }
+      posed.push(setPose(m.g, m.sp, restY(it, m.sp, exclude, posed)));
+    });
+    if (out.length) groundList(out).forEach((n, i) => { out[i].sp = n.sp; setPose(n.g, n.sp, 0); });
+    if (out.length) toast(out.length === 1 ? 'Nel camion non c’è posto per questo collo: l’ho messo a terra.' : `Nel camion non c’è posto per ${out.length} colli: li ho messi a terra.`, 'warn');
+    else if (moved) toast(moved === 1 ? 'Lì superava l’altezza del mezzo: l’ho messo nel posto libero più vicino.' : `${moved} colli superavano l’altezza del mezzo: li ho messi nei posti liberi più vicini.`);
+    updSelBoxes();
   }
   $('#sel').addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b) return;
@@ -3183,6 +3287,57 @@ const FIREBASE_DOC = 'carico-camion/database';
     poseGroup([{ g, sp }]); commit([{ g, sp }]);
   });
   addEventListener('keydown', e => { if (e.key === 'Escape' && selSigs.size && !document.querySelector('dialog[open]')) { multiMode = false; select([]); } });
+  // frecce: spostano i colli selezionati di 5 cm (con Maiusc 1 cm), nella direzione vista sullo schermo
+  let nudge = null;
+  addEventListener('keydown', e => {
+    const dirs = { ArrowUp: 'u', ArrowDown: 'd', ArrowLeft: 'l', ArrowRight: 'r' };
+    if (!dirs[e.key] || !selSigs.size || drag || anim.playing || anim.t < objs.length || document.querySelector('dialog[open]')) return;
+    if (e.target.closest && e.target.closest('input, select, textarea')) return;
+    e.preventDefault();
+    const snap = v => Math.abs(v.x) >= Math.abs(v.z) ? [Math.sign(v.x), 0] : [0, Math.sign(v.z)];
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion); up.y = 0;
+    if (up.lengthSq() < 1e-4) { camera.getWorldDirection(up); up.y = 0; }
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion); right.y = 0;
+    const k = dirs[e.key], [ax, az] = snap(k === 'u' || k === 'd' ? up : right), sg = k === 'd' || k === 'l' ? -1 : 1, step = e.shiftKey ? 0.01 : 0.05;
+    if (!nudge) { const gs = selObjs(); riders = findRiders(gs); nudge = { list: gs.map(g => ({ g, sp: curSpec(g) })) }; }
+    clearTimeout(nudge.t);
+    // ogni collo scorre alla sua quota: se urta un collo vicino si ferma al contatto, non gli sale sopra
+    const ex = new Set(nudge.list.map(m => m.g.userData.it.id));
+    nudge.list.forEach(m => {
+      const it = m.g.userData.it, wx = (m.sp.vano >= 0 ? vanoX[m.sp.vano] + m.sp.cx : m.sp.cx) + ax * sg * step, wz = (m.sp.vano >= 0 ? m.sp.cz - S.cfg.W / 2 : m.sp.cz) + az * sg * step;
+      const yh = m.sp.yHint, sp = specAt(it, wx, wz, m.sp); sp.yHint = yh;
+      if (sp.vano === m.sp.vano && restY(it, sp, ex, []) > restY(it, m.sp, ex, []) + 0.005) return;
+      m.sp = sp;
+    });
+    poseGroup(nudge.list);
+    nudge.t = setTimeout(() => { const l = nudge.list; nudge = null; commit(l); }, 450);
+  });
+  // riquadro di selezione: Ctrl (o Maiusc) + trascina su uno spazio vuoto
+  let box = null;
+  const boxEl = document.createElement('div'); boxEl.className = 'marquee'; boxEl.hidden = true; canvas.parentElement.appendChild(boxEl);
+  function boxRect(e) {
+    const pr = canvas.parentElement.getBoundingClientRect();
+    const x1 = Math.min(box.x0, e.clientX), x2 = Math.max(box.x0, e.clientX), y1 = Math.min(box.y0, e.clientY), y2 = Math.max(box.y0, e.clientY);
+    return { x1, x2, y1, y2, pr };
+  }
+  function moveBox(e) {
+    const r = boxRect(e);
+    Object.assign(boxEl.style, { left: r.x1 - r.pr.left + 'px', top: r.y1 - r.pr.top + 'px', width: r.x2 - r.x1 + 'px', height: r.y2 - r.y1 + 'px' });
+    boxEl.hidden = false;
+  }
+  function endBox(e) {
+    const r = boxRect(e), b = box; box = null; boxEl.hidden = true; controls.enabled = true;
+    if (r.x2 - r.x1 < 6 && r.y2 - r.y1 < 6) return;
+    const cr = canvas.getBoundingClientRect(), s2 = new Set(b.base);
+    for (const g of allObjs()) {
+      if (!g.visible) continue;
+      const v = g.position.clone().project(camera);
+      if (v.z > 1) continue;
+      const sx = cr.left + (v.x + 1) / 2 * cr.width, sy = cr.top + (1 - v.y) / 2 * cr.height;
+      if (sx >= r.x1 && sx <= r.x2 && sy >= r.y1 && sy <= r.y2) s2.add(g.userData.it.sig);
+    }
+    select([...s2]);
+  }
   function rayPoint(e, plane) {
     const r = canvas.getBoundingClientRect();
     mouse.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
@@ -3192,6 +3347,7 @@ const FIREBASE_DOC = 'carico-camion/database';
   function startDrag(g, e) {
     const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -g.position.y);
     const p0 = rayPoint(e, plane); if (!p0) return false;
+    riders = findRiders(selObjs());
     drag = { plane, p0, moved: false, members: selObjs().map(m => ({ g: m, sp0: curSpec(m), wx: m.position.x, wz: m.position.z })) };
     controls.enabled = false; tip.hidden = true; canvas.style.cursor = 'grabbing';
     if (hoverBox) { scene.remove(hoverBox); hoverBox = null; }
@@ -3233,10 +3389,17 @@ const FIREBASE_DOC = 'carico-camion/database';
 
   let pickQ = false;
   canvas.addEventListener('pointermove', e => {
+    if (box) { moveBox(e); return; }
     if (drag) { moveDrag(e); return; }
     if (e.buttons || pickQ) return; pickQ = true; requestAnimationFrame(() => { pickQ = false; pick(e); });
   });
   canvas.addEventListener('pointerdown', e => {
+    if (e.button === 0 && (e.ctrlKey || e.metaKey || e.shiftKey || multiMode) && anim.t >= objs.length && !anim.playing && !hitObj(e)) {
+      box = { x0: e.clientX, y0: e.clientY, base: new Set(selSigs) }; down = null;
+      controls.enabled = false; tip.hidden = true;
+      try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* ignora */ }
+      e.stopImmediatePropagation(); e.preventDefault(); return;
+    }
     down = { x: e.clientX, y: e.clientY };
     if (e.pointerType !== 'mouse') pick(e); else tip.hidden = true;
     if (selSigs.size && !(e.shiftKey || e.ctrlKey || e.metaKey) && anim.t >= objs.length && !anim.playing) {
@@ -3245,6 +3408,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     }
   }, true);
   canvas.addEventListener('pointerup', e => {
+    if (box) { endBox(e); down = null; return; }
     if (drag) { const moved = drag.moved; endDrag(); if (moved) { down = null; return; } }
     if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 6 && anim.t >= objs.length) {
       const g = hitObj(e), multi = e.shiftKey || e.ctrlKey || e.metaKey || multiMode;
