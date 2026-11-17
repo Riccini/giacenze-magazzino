@@ -956,26 +956,43 @@ const Lib = (() => {
   // Riempimento del bancale per gravità: ogni tubo scende finché tocca il fondo o i tubi già posati, mai sospeso nel vuoto.
   // Senza composizione il tubo va nel posto libero più basso (a parità, il più a sinistra): così si riempie dal basso e,
   // a nido d'ape, i tubi cadono negli incavi. Con la composizione scritta nel database le file sono centrate come indicato.
-  function layoutLayers(layers, palW, hex, w = W0) {
+  function layoutLayers(layers, palW, hex, w = W0, noSpread = false) {
     const Wi = palW - 2 * w.s, pos = [], placed = [];
+    let spreadUsed = false;
     let top = w.b;
     const contact = (z, d, q) => { const R = (d + q.d) / 2, dz = Math.abs(z - q.z); return dz < R - 1e-9 ? q.y + Math.sqrt(R * R - dz * dz) : -Infinity; };
     const dropY = (z, d) => { let y = w.b + d / 2; for (const q of placed) { const c = contact(z, d, q); if (c > y) y = c; } return y; };
     const put = (y, z, d, p) => { placed.push({ y, z, d }); pos.push({ y, z, p }); top = Math.max(top, y + d / 2); };
     for (const L of layers) {
       const d = L.sp; let i = 0;
+      let zLo = -Wi / 2 + d / 2, zHi = Wi / 2 - d / 2;
+      if (zHi < zLo) zLo = zHi = 0;
+      // fila di k tubi allargata da un legno laterale all'altro (se il bancale è più largo dei tubi restano spazi uguali tra loro)
+      const spread = k => { if (k === 1) return [0]; const g = Math.max(d, (zHi - zLo) / (k - 1)), z0 = -g * (k - 1) / 2; return Array.from({ length: k }, (_, j) => z0 + j * g); };
       if (L.rows && L.rows.length) {
-        // composizione: file centrate; l'ultima fila incompleta occupa i posti centrali della fila piena
+        // composizione: una fila con un tubo in meno di quella sotto va negli spazi tra i suoi tubi (nido d'ape);
+        // con lo stesso numero va dritta sopra; con più tubi si allarga fino ai legni laterali.
+        // L'ultima fila incompleta occupa i posti centrali della fila piena.
+        let prev = null;
         for (let r = 0; i < L.pieces.length; r++) {
-          const m = Math.max(1, L.rows[Math.min(r, L.rows.length - 1)]), n = Math.min(m, L.pieces.length - i), j0 = Math.floor((m - n) / 2);
-          const zs = Array.from({ length: n }, (_, j) => -(m * d) / 2 + d / 2 + (j0 + j) * d);
+          const m = Math.max(1, L.rows[Math.min(r, L.rows.length - 1)]), n = Math.min(m, L.pieces.length - i);
+          let full;
+          if (!prev || m > prev.length) full = spread(m);
+          else if (m === prev.length) full = prev.slice();
+          else { const v = prev.slice(1).map((z, j) => (z + prev[j]) / 2), j0 = Math.floor((v.length - m) / 2); full = v.slice(j0, j0 + m); }
+          const j0 = Math.floor((m - n) / 2), zs = full.slice(j0, j0 + n);
           const ys = zs.map(z => dropY(z, d));
-          zs.forEach((z, j) => put(ys[j], z, d, L.pieces[i++]));
+          zs.forEach((z, j) => { put(ys[j], z, d, L.pieces[i++]); pos[pos.length - 1].rowFix = r; });
+          prev = full;
         }
         continue;
       }
-      let zLo = -Wi / 2 + d / 2, zHi = Wi / 2 - d / 2;
-      if (zHi < zLo) zLo = zHi = 0;
+      // a nido d'ape, fila di fondo completa: si allarga fino ai legni, le file sopra scendono negli spazi
+      // (si tiene solo se il bancale viene più basso che con i tubi accostati)
+      if (hex && !placed.length && !noSpread) {
+        const c = Math.max(1, Math.floor((Wi + 1e-6) / d));
+        if (c > 1 && L.pieces.length >= c && zHi - zLo > (c - 1) * d + 1e-4) { spread(c).forEach(z => put(dropY(z, d), z, d, L.pieces[i++])); spreadUsed = true; }
+      }
       const cand = new Map();
       const add = z => {
         if (z < zLo - 1e-6 || z > zHi + 1e-6) return;
@@ -1013,8 +1030,9 @@ const Lib = (() => {
       }
     }
     // file (livelli) e posizione nella fila, per il disegno e per la composizione mostrata nel database
-    pos.forEach((q, k) => { const d = placed[k].d; q.row = Math.max(0, Math.round((q.y - w.b - d / 2) / (hex ? d * 0.866 : d))); });
+    pos.forEach((q, k) => { const d = placed[k].d; q.row = q.rowFix ?? Math.max(0, Math.round((q.y - w.b - d / 2) / (hex ? d * 0.866 : d))); delete q.rowFix; });
     pos.slice().sort((x, y) => x.z - y.z).forEach((q, k) => { q.col = k; });
+    if (spreadUsed) { const alt = layoutLayers(layers, palW, hex, w, true); if (alt.h < top + w.t - 1e-6) return alt; }
     return { pos, h: top + w.t };
   }
   const widthFor = (c, sp, w = W0) => Math.ceil((c * sp + 2 * w.s) * 100 - 1e-6) / 100;
