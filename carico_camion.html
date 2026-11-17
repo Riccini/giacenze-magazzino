@@ -1410,6 +1410,8 @@ const Lib = (() => {
     specs.sort((a, b) => (a.sp.yHint || 0) - (b.sp.yHint || 0));
     for (const { it, sp } of specs) {
       const V = vani[sp.vano];
+      // collo lasciato esattamente dov'era (congelato dopo una modifica a mano di un altro collo)
+      if (sp.frozen && sp.pl) { out[sp.vano].push({ ...sp.pl, id: it.id, kind: it.kind, seq: it.seq, fixed: true }); continue; }
       let p;
       if (it.kind === 'bar') {
         const rot = !!it.generic && Math.round(sp.yaw || 0) % 180 === 90;
@@ -1628,8 +1630,15 @@ const FIREBASE_DOC = 'carico-camion/database';
   }
   const stopOf = o => stops().find(b => b.list.includes(o));
   const nestRef = (r, oid) => r.nest === undefined || r.nest === 'no' ? r.nest : typeof r.nest === 'number' ? `${oid}:${r.nest}` : String(r.nest);
+  // impronta di ciò che decide il carico (ordini, impostazioni, misure): le posizioni "congelate" valgono solo finché non cambia
+  function loadKey() {
+    const t = JSON.stringify([S.orders, S.cfg, S.dims, S.custom]);
+    let h = 0; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0;
+    return t.length + ':' + h;
+  }
   function recompute() {
     const bl = stops(); S.orders = bl.flatMap(b => b.list);
+    if (S.frozenKey && S.frozenKey !== loadKey()) { for (const k in S.fixed) if (S.fixed[k].frozen) delete S.fixed[k]; S.frozenKey = null; }
     const vmap = new Map(), active = [];
     bl.forEach((b, bi) => {
       const on = b.list.filter(o => o.on !== false); if (!on.length) return;
@@ -3161,8 +3170,17 @@ const FIREBASE_DOC = 'carico-camion/database';
     list.forEach(({ g, sp }) => {
       const it = g.userData.it;
       S.fixed[it.sig] = { vano: sp.vano, cx: r3(sp.cx), cz: r3(sp.cz), tilt: Math.round(sp.tilt || 0), yaw: Math.round(sp.yaw || 0) % 360, yHint: sp.yHint || 0 };
+      if (riders.has(it.id)) riders.delete(it.id);
     });
     list.forEach(({ g }) => freezeSupports(g.userData.it, S.fixed[g.userData.it.sig], seen));
+    // gli altri colli restano dove sono: la modifica vale solo per quelli spostati (chi stava sopra di loro viene risistemato)
+    for (const p of P.placements) {
+      const q = P.byId.get(p.id);
+      if (!q || seen.has(p.id) || riders.has(p.id) || S.fixed[q.sig]) continue;
+      const { id, ...pl } = p; delete pl.fixed;
+      S.fixed[q.sig] = { ...specOf(p), frozen: true, pl };
+    }
+    S.frozenKey = loadKey();
     riders = new Set();
     recompute();
   }
@@ -3185,7 +3203,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     }
     $('#selRot').hidden = !(one && one.userData.it.kind === 'roll');
     $('#selGen').hidden = !(one && one.userData.it.generic);
-    $('#selAuto').hidden = !gs.some(g => S.fixed[g.userData.it.sig]);
+    $('#selAuto').hidden = !gs.some(g => S.fixed[g.userData.it.sig] && !S.fixed[g.userData.it.sig].frozen);
     $('#selGround').hidden = gs.every(g => g.userData.p.vano < 0);
     $('#selMulti').setAttribute('aria-pressed', multiMode);
     updSelBoxes();
@@ -3278,7 +3296,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     if (b.id === 'selClose') { multiMode = false; select([]); return; }
     if (b.id === 'selMulti') { multiMode = !multiMode; b.setAttribute('aria-pressed', multiMode); return; }
     if (!gs.length) return;
-    if (b.id === 'selAuto') { gs.forEach(g => delete S.fixed[g.userData.it.sig]); recompute(); return; }
+    if (b.id === 'selAuto') { gs.forEach(g => delete S.fixed[g.userData.it.sig]); for (const k in S.fixed) if (S.fixed[k].frozen) delete S.fixed[k]; S.frozenKey = null; recompute(); return; }
     if (b.id === 'selGround') { toGround(gs.filter(g => g.userData.p.vano >= 0)); return; }
     const q = b.dataset.q; if (!q || gs.length !== 1) return;
     const g = gs[0], sp = curSpec(g);
@@ -3367,7 +3385,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     if (d.moved && d.list) commit(d.list);
   }
   function renderFixNote() {
-    const fixedP = P.placements.filter(p => p.fixed), nG = P.groundPl.length;
+    const fixedP = P.placements.filter(p => p.fixed && !(S.fixed[P.byId.get(p.id)?.sig] || {}).frozen), nG = P.groundPl.length;
     const box = $('#fixNote');
     if (!fixedP.length && !nG) { box.hidden = true; return; }
     let clash = 0, high = 0;
@@ -3385,7 +3403,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     box.hidden = false; box.classList.toggle('alert', !!warn);
     box.innerHTML = `${esc(parts)}${warn ? ': ' + esc(warn) : ''}. <button class="link" id="fixReset">Rimetti tutto in automatico</button>`;
   }
-  $('#fixNote').addEventListener('click', e => { if (e.target.id === 'fixReset') { S.fixed = {}; recompute(); } });
+  $('#fixNote').addEventListener('click', e => { if (e.target.id === 'fixReset') { S.fixed = {}; S.frozenKey = null; recompute(); } });
 
   let pickQ = false;
   canvas.addEventListener('pointermove', e => {
