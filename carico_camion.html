@@ -923,17 +923,35 @@ const Lib = (() => {
       hosts.push(p);
     }
   }
+  // Matrioska: nel foro di un rotolo grande entrano più file di rotoli piccoli affiancate (cerchi nel cerchio, come per le
+  // barre infilate); ogni fila si riempie lungo lo spessore del rotolo grande. Le file si decidono col primo rotolo infilato.
   function nestRolls(rolls) {
     const sorted = rolls.filter(r => FAM[r.fam] && FAM[r.fam].pe).sort((a, b) => b.D - a.D);
+    const colFor = (h, g) => {
+      if (!h.cols) return h.dInt >= g.D + 0.03 && g.Wd <= h.Wd + 0.02 ? -1 : null;
+      const i = h.cols.findIndex(c => c.slotD >= g.D + 0.03 - 1e-9 && c.used + g.Wd <= h.Wd + 0.02);
+      return i < 0 ? null : i;
+    };
     for (let i = 0; i < sorted.length; i++) {
       const g = sorted[i];
-      let best = null;
+      let best = null, bc = null;
       for (let j = 0; j < i; j++) {
         const h = sorted[j];
-        if (h.dInt < g.D + 0.03 || h.stack + g.Wd > h.Wd + 0.02) continue;
-        if (!best || h.dInt < best.dInt) best = h;
+        if (h.parent === g) continue;
+        const c = colFor(h, g); if (c === null) continue;
+        // preferisce un foro già iniziato (riempie prima i rotoli grandi già usati), poi il foro più piccolo che basta
+        const score = (h.cols ? 0 : 1) * 1000 + h.dInt;
+        if (!best || score < best.score) { best = { h, score }; bc = c; }
       }
-      if (best) { best.stack += g.Wd; best.guests.push(g); g.parent = best; }
+      if (!best) continue;
+      const h = best.h;
+      if (bc === -1) {
+        const k = Math.min(7, Math.max(1, circlesIn(h.dInt / (g.D + 0.03)))), slotD = k === 1 ? h.dInt : h.dInt / CIC[k];
+        h.cols = Array.from({ length: k }, () => ({ used: 0, slotD })); h.nCols = k; bc = 0;
+      }
+      const col = h.cols[bc];
+      g.along = col.used; g.col = bc; col.used += g.Wd; h.stack = Math.max(h.stack, col.used);
+      h.guests.push(g); g.parent = h;
     }
   }
 
@@ -1231,26 +1249,27 @@ const Lib = (() => {
   const topFor = (it, p) => p.y + p.h - (it.kind === 'bar' && p.kind === 'bar' && !it.generic && !p.generic && !p.loose ? (p.wT ?? WOOD_T) : 0);
   function findBox(v, placed, V, it, minX, opt) {
     if (v.lx > V.L + EPS || v.lz > V.W + EPS || v.h > V.H + EPS) return null;
-    const xs = new Set([Math.round(minX * 1000)]), zs = new Set([0, Math.round((V.W - v.lz) * 1000)]);
+    // posizioni candidate esatte (al micron): arrotondarle al millimetro creava sovrapposizioni finte e spazi persi
+    const xs = new Set([Math.round(minX * 1e6)]), zs = new Set([0, Math.round((V.W - v.lz) * 1e6)]);
     for (const p of placed) {
       const rx = rightOf(p);
-      if (rx >= minX - EPS) xs.add(Math.round(rx * 1000));
+      if (rx >= minX - EPS) xs.add(Math.round(rx * 1e6));
       if (p.shape === 'box') {
-        if (p.x >= minX - EPS) xs.add(Math.round(p.x * 1000));
-        if (p.kind === 'bar' && it.kind === 'bar' && !p.generic && !it.generic) { xs.add(Math.round((p.x + STAGGER) * 1000)); if (p.x - STAGGER >= minX - EPS) xs.add(Math.round((p.x - STAGGER) * 1000)); }
-        zs.add(Math.round(p.z * 1000)); zs.add(Math.round((p.z + p.lz) * 1000)); zs.add(Math.round((p.z - v.lz) * 1000));
+        if (p.x >= minX - EPS) xs.add(Math.round(p.x * 1e6));
+        if (p.kind === 'bar' && it.kind === 'bar' && !p.generic && !it.generic) { xs.add(Math.round((p.x + STAGGER) * 1e6)); if (p.x - STAGGER >= minX - EPS) xs.add(Math.round((p.x - STAGGER) * 1e6)); }
+        zs.add(Math.round(p.z * 1e6)); zs.add(Math.round((p.z + p.lz) * 1e6)); zs.add(Math.round((p.z - v.lz) * 1e6));
       } else {
-        zs.add(Math.round((p.cz + p.r) * 1000)); zs.add(Math.round((p.cz - p.r - v.lz) * 1000));
+        zs.add(Math.round((p.cz + p.r) * 1e6)); zs.add(Math.round((p.cz - p.r - v.lz) * 1e6));
       }
     }
     const area = v.lx * v.lz, need = it.kind === 'bar' ? 0.8 : 0.6;
     let best = null;
     for (const xi of xs) {
-      const x = xi / 1000;
+      const x = xi / 1e6;
       if (x < minX - EPS || x + v.lx > V.L + EPS) continue;
       if (best && x + v.lx > best.s0 + EPS) continue;
       for (const zi of zs) {
-        const z = zi / 1000;
+        const z = zi / 1e6;
         if (z < -EPS || z + v.lz > V.W + EPS) continue;
         const me = { shape: 'box', x, z, lx: v.lx, lz: v.lz };
         let base = 0, bad = false;
@@ -3000,16 +3019,20 @@ const FIREBASE_DOC = 'carico-camion/database';
       return { outer, inner, top, bot, straps, mSide: mat(side), mIn: mat(sideIn, THREE.BackSide), mFace: mat(faceTex, THREE.DoubleSide), strapM, ri, R };
     });
   }
+  const CIC_UI = [0, 1, 2, 2.1547, 2.4142, 2.7013, 3, 3, 3.3048, 3.6131, 3.813, 3.9238, 4.0296, 4.236, 4.3284, 4.5213, 4.6154, 4.792, 4.8637, 4.8637, 5.1223];
   function makeRoll(it, clientColor) {
     const pr = rollParts(it.D, it.dInt, it.Wd, it.dn, it.fam, clientColor);
     const g = new THREE.Group();
     g.add(new THREE.Mesh(pr.outer, pr.mSide), new THREE.Mesh(pr.inner, pr.mIn), new THREE.Mesh(pr.top, pr.mFace), new THREE.Mesh(pr.bot, pr.mFace), new THREE.Mesh(pr.straps, pr.strapM));
-    // matrioska: rotoli più piccoli nel foro, appoggiati sul fondo
+    // matrioska: rotoli più piccoli nel foro; una sola fila appoggiata sul fondo, più file disposte in cerchio
     let yb = -it.Wd / 2;
+    const k = it.nCols || 1, slotR = k === 1 ? pr.ri : (it.dInt / CIC_UI[k]) / 2, ring = k === 1 ? 0 : pr.ri - slotR;
     for (const gst of it.guests) {
       const child = makeRoll(gst, clientColor);
-      child.position.y = yb + gst.Wd / 2; yb += gst.Wd;
-      child.userData.radial = pr.ri - gst.D / 2;
+      if (gst.along != null) child.position.y = -it.Wd / 2 + gst.along + gst.Wd / 2; else { child.position.y = yb + gst.Wd / 2; yb += gst.Wd; }
+      if (k === 1) child.userData.radial = pr.ri - gst.D / 2;
+      else if (k === 7 && gst.col === 6) child.userData.ring = { r: 0, a: 0 };
+      else { const n = k === 7 ? 6 : k; child.userData.ring = { r: ring, a: (gst.col || 0) * 2 * Math.PI / n }; }
       g.add(child);
     }
     return g;
@@ -3018,6 +3041,12 @@ const FIREBASE_DOC = 'carico-camion/database';
     const down = new THREE.Vector3(0, -1, 0).applyQuaternion(quat.clone().invert()); down.y = 0;
     const len = down.length();
     g.children.forEach(ch => {
+      if (ch.userData.ring) {
+        // file in cerchio: la prima verso il basso
+        const base = len > 0.01 ? Math.atan2(down.z, down.x) : Math.PI / 2, rg = ch.userData.ring;
+        ch.position.x = rg.r * Math.cos(base + rg.a); ch.position.z = rg.r * Math.sin(base + rg.a);
+        placeGuests(ch, quat); return;
+      }
       if (ch.userData.radial == null) return;
       if (len > 0.01) { const d2 = down.clone().divideScalar(len).multiplyScalar(Math.max(0, ch.userData.radial) * Math.min(1, len)); ch.position.x = d2.x; ch.position.z = d2.z; }
       else { ch.position.x = 0; ch.position.z = 0; }
