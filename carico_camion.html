@@ -1222,6 +1222,15 @@ const Lib = (() => {
     const flat = { shape: 'cyl', r: Df / 2, h: hf, o: 'flat' };
     const sX = { shape: 'box', lx: Ws, lz: Df, h: Df, o: 'standX', top: false, floor: it.aTerra };
     const sZ = { shape: 'box', lx: Df, lz: Ws, h: Df, o: 'standZ', top: false, floor: it.aTerra };
+    // inclinati di 45° e 60° (pendono lungo il camion o di traverso): ingombro = scatola che li contiene
+    const tl = opt.tilts && !it.aTerra ? [45, 60].flatMap(t => [0, 90].map(y => { const b = rollAABB(it, t, y, opt); return { shape: 'box', lx: 2 * b.hx, lz: 2 * b.hz, h: b.h, o: 'free', tilt: t, yaw: y, top: false }; })) : [];
+    if (tl.length) {
+      if (it.orient === 'flat') return [[flat], tl];
+      if (it.orient === 'stand' || it.orient === 'standX' || it.orient === 'standZ') return [[...(it.orient === 'stand' ? [sX, sZ] : it.orient === 'standX' ? [sX] : [sZ]), ...tl]];
+      if (mode === 'flat') return [[flat], [sX, sZ, ...tl]];
+      if (mode === 'stand') return [[sX, sZ, ...tl], [flat]];
+      return [[flat, sX, sZ, ...tl]];
+    }
     if (it.orient === 'flat') return [[flat]];
     if (it.orient === 'stand') return [[sX, sZ]];
     if (it.orient === 'standX') return [[sX]];
@@ -1276,13 +1285,23 @@ const Lib = (() => {
         const under = [];
         for (const p of placed) {
           if (!xzOver(me, p)) continue;
-          if (p.shape === 'cyl' || p.kind === 'roll') { bad = true; break; }
+          // sopra un rotolo può stare solo un rotolo in piedi o inclinato, e solo su rotoli sdraiati
+          if (p.kind === 'roll' && (it.kind !== 'roll' || p.shape !== 'cyl')) { bad = true; break; }
           under.push(p); const t = topFor(it, p); if (t > base) base = t;
           if (opt.rispettaScarico && p.seq < it.seq) { bad = true; break; }
         }
         if (bad || base + v.h > V.H + EPS) continue;
         if (v.floor && base > EPS) continue;
-        if (base > 0) {
+        if (base > 0 && under.some(p => p.shape === 'cyl' && Math.abs(p.y + p.h - base) < 0.04)) {
+          // appoggio su rotoli sdraiati (e bancali alla stessa quota): almeno il 70% dell'impronta e il centro appoggiati,
+          // niente di più alto sotto
+          if (under.some(p => topFor(it, p) > base + 0.005 - 0.04 && Math.abs(topFor(it, p) - base) >= 0.04)) continue;
+          const sup = under.filter(p => Math.abs(topFor(it, p) - base) < 0.04 && (p.shape === 'cyl' || p.top));
+          const inS = (px, pz) => sup.some(p => p.shape === 'cyl' ? (px - p.cx) ** 2 + (pz - p.cz) ** 2 <= p.r * p.r : px >= p.x && px <= p.x + p.lx && pz >= p.z && pz <= p.z + p.lz);
+          let ok = 0, n = 0;
+          for (let a = 0; a <= 4; a++) for (let b = 0; b <= 2; b++) { n++; if (inS(x + v.lx * (0.05 + 0.9 * a / 4), z + v.lz * (0.05 + 0.9 * b / 2))) ok++; }
+          if (!inS(x + v.lx / 2, z + v.lz / 2) || ok / n < 0.7) continue;
+        } else if (base > 0) {
           let sup = 0;
           for (const p of under) {
             if (Math.abs(topFor(it, p) - base) < 0.04) {
@@ -1294,9 +1313,18 @@ const Lib = (() => {
           }
           if (bad || sup < need * area) continue;
         }
+        if (v.tilt) {
+          // rotolo inclinato: deve appoggiarsi da un lato (sponda o collo vicino) nella direzione in cui pende
+          const ax = v.yaw !== 90, lo = ax ? x : z, hi = lo + (ax ? v.lx : v.lz), lim = ax ? V.L : V.W;
+          const L0 = p => p.shape === 'cyl' ? p.cx - p.r : p.x, L1 = p => p.shape === 'cyl' ? p.cx + p.r : p.x + p.lx, Z0 = p => p.shape === 'cyl' ? p.cz - p.r : p.z, Z1 = p => p.shape === 'cyl' ? p.cz + p.r : p.z + p.lz;
+          const touch = lo < 0.01 || hi > lim - 0.01 || placed.some(p => p.y < base + v.h && p.y + p.h > base + 0.1 && (ax
+            ? (Math.abs(L1(p) - x) < 0.01 || Math.abs(L0(p) - (x + v.lx)) < 0.01) && Z1(p) > z && Z0(p) < z + v.lz
+            : (Math.abs(Z1(p) - z) < 0.01 || Math.abs(Z0(p) - (z + v.lz)) < 0.01) && L1(p) > x && L0(p) < x + v.lx));
+          if (!touch) continue;
+        }
         const s0 = x + v.lx;
         if (!best || s0 < best.s0 - EPS || (Math.abs(s0 - best.s0) <= EPS && (base < best.y - EPS || (Math.abs(base - best.y) <= EPS && z < best.z - EPS)))) {
-          best = { shape: 'box', x, y: base, z, s0, lx: v.lx, lz: v.lz, h: v.h, o: v.o, top: v.top, rot: v.rot };
+          best = { shape: 'box', x, y: base, z, s0, lx: v.lx, lz: v.lz, h: v.h, o: v.o, top: v.top, rot: v.rot, tilt: v.tilt, yaw: v.yaw };
         }
       }
     }
@@ -1308,9 +1336,9 @@ const Lib = (() => {
     const r = v.r, h = v.h;
     if (2 * r > V.W + EPS || 2 * r > V.L + EPS || h > V.H + EPS) return null;
     let best = null;
-    const consider = (cx, cz, y, s0) => {
+    const consider = (cx, cz, y, s0, bridge) => {
       if (!best || s0 < best.s0 - EPS || (Math.abs(s0 - best.s0) <= EPS && (y < best.y - EPS || (Math.abs(y - best.y) <= EPS && cz < best.cz - EPS)))) {
-        best = { shape: 'cyl', cx, cz, y, r, h, s0, o: 'flat', top: false };
+        best = { shape: 'cyl', cx, cz, y, r, h, s0, o: 'flat', top: false, bridge };
       }
     };
     // A) in colonna su un altro rotolo sdraiato
@@ -1326,6 +1354,39 @@ const Lib = (() => {
       let bad = false;
       for (const q of placed) if (q !== p && yOver(q, y, h) && xzOver(me, q)) { bad = true; break; }
       if (!bad) consider(p.cx, p.cz, y, p.cx + r);
+    }
+    // C) a ponte: sopra due rotoli sdraiati vicini (o colonne) con la cima alla stessa quota, col centro sopra gli appoggi
+    const tops = placed.filter(p => p.shape === 'cyl' && !p.covered && !(opt.rispettaScarico && p.seq < it.seq) && rightOf(p) >= minX - 2 * r);
+    for (let i = 0; i < tops.length; i++) for (let j = i + 1; j < tops.length; j++) {
+      const a = tops[i], b = tops[j], ya = a.y + a.h, yb = b.y + b.h;
+      if (Math.abs(ya - yb) > 0.03) continue;
+      const dd = Math.hypot(b.cx - a.cx, b.cz - a.cz);
+      if (dd < 0.05 || dd > a.r + b.r + 0.05 || dd > 2 * r) continue;
+      const y = Math.max(ya, yb);
+      if (y + h > V.H + EPS) continue;
+      for (const t of [0.5, a.r / (a.r + b.r), 0.35, 0.65]) {
+        const cx = a.cx + t * (b.cx - a.cx), cz = a.cz + t * (b.cz - a.cz);
+        if (cx - r < minX - 1e-4 || cx + r > V.L + 1e-4 || cz - r < -1e-4 || cz + r > V.W + 1e-4) continue;
+        const s0 = cx + r;
+        if (best && s0 > best.s0 + EPS) continue;
+        const me = { shape: 'cyl', cx, cz, r };
+        const sup = []; let bad = false;
+        for (const q of placed) {
+          if (!xzOver(me, q)) continue;
+          const tq = q.y + q.h;
+          if (yOver(q, y, h) || tq > y + 0.03) { bad = true; break; }
+          if (Math.abs(tq - y) <= 0.03) {
+            if (!(q.shape === 'cyl' || (q.kind === 'bar' && q.top !== false)) || (opt.rispettaScarico && q.seq < it.seq)) { bad = true; break; }
+            sup.push(q);
+          }
+        }
+        if (bad || sup.length < 2) continue;
+        let ok = 0;
+        const inS = (px, pz) => sup.some(q => q.shape === 'cyl' ? (px - q.cx) ** 2 + (pz - q.cz) ** 2 <= q.r * q.r : px >= q.x && px <= q.x + q.lx && pz >= q.z && pz <= q.z + q.lz);
+        for (const [sx, sz] of SAMPLES) if (inS(cx + sx * r, cz + sz * r)) ok++;
+        if (ok / SAMPLES.length < 0.5) continue;
+        consider(cx, cz, y, s0, sup.map(q => q.id));
+      }
     }
     // B) appoggiato sul pianale o sopra i bancali di barre
     const seen = new Set(), cyls = [];
@@ -1401,9 +1462,17 @@ const Lib = (() => {
       const fk = (it.kind === 'bar' ? `b${it.lx}|${it.lz}|${it.h}|${it.stackable}` : `r${it.D}|${it.Wd}|${it.orient}|${it.aTerra}`) + '|' + it.seq;
       if (fail.get(fk) === placed.length) { rest.push(it); continue; }
       for (const group of variants(it, mode, opt)) {
+        const found = [];
         for (const v of group) {
           const s = v.shape === 'cyl' ? findCyl(v, placed, V, it, minX, opt) : findBox(v, placed, V, it, minX, opt);
+          if (s) found.push(s);
           if (s && (!spot || s.s0 < spot.s0 - EPS || (Math.abs(s.s0 - spot.s0) <= EPS && s.y < spot.y - EPS))) spot = s;
+        }
+        // prove di ottimizzazione: a volte un rotolo prende un altro orientamento (sdraiato / in piedi) anche se
+        // sul momento occupa un po' di più, perché può lasciare spazio migliore ai colli successivi
+        if (spot && opt.rnd && found.length > 1 && opt.rnd() < 0.3) {
+          const alt = found.filter(s => s !== spot && s.s0 <= spot.s0 + 0.6);
+          if (alt.length) spot = alt[Math.floor(opt.rnd() * alt.length)];
         }
         if (spot) break;
       }
@@ -1411,6 +1480,7 @@ const Lib = (() => {
         if (spot.shape === 'cyl') {
           const below = placed.find(p => p.shape === 'cyl' && !p.covered && Math.abs(p.cx - spot.cx) < 1e-4 && Math.abs(p.cz - spot.cz) < 1e-4 && Math.abs(p.y + p.h - spot.y) < 1e-4);
           if (below) below.covered = true;
+          if (spot.bridge) placed.forEach(p => { if (spot.bridge.includes(p.id)) p.covered = true; });
           spot.x = spot.cx - spot.r; spot.z = spot.cz - spot.r; spot.lx = spot.lz = 2 * spot.r;
         }
         placed.push({ ...spot, id: it.id, kind: it.kind, seq: it.seq, wT: it.wood ? it.wood.t : undefined });
@@ -1439,6 +1509,11 @@ const Lib = (() => {
       ? (b.lx - a.lx || b.lz * b.h - a.lz * a.h)
       : (variant === 1 ? volOf(b) - volOf(a) : (b.D - a.D || b.Wd - a.Wd));
     const rank = i => i.kind === 'bar' ? 0 : (i.aTerra ? (floorFirst ? -1 : 0.5) : 1);
+    // variante 2: i rotoli piccoli di tutti gli scarichi per ultimi, a riempire i vuoti (accanto, mai sopra, agli scarichi prima)
+    if (variant === 2 && opt.div !== 'separato') {
+      const small = i => i.kind === 'roll' && !i.aTerra && i.D < (opt.smallD || 1.0) ? 1 : 0;
+      return items.slice().sort((a, b) => rank(a) - rank(b) || small(a) - small(b) || b.seq - a.seq || inKind(a, b) || a.id - b.id);
+    }
     return items.slice().sort((a, b) => opt.div === 'separato'
       ? (b.seq - a.seq || rank(a) - rank(b) || inKind(a, b) || a.id - b.id)
       : (rank(a) - rank(b) || b.seq - a.seq || inKind(a, b) || a.id - b.id));
@@ -1522,16 +1597,17 @@ const Lib = (() => {
     if (!items.length) runList.splice(1);
     // prove in più (pulsante "Ottimizza"): stesse regole, ordine di posa dei colli mescolato
     const tries = opt.tries || 0, rnd = rng(opt.seed || 1);
-    for (let t = 0; t < tries; t++) extra.push([modes[t % modes.length], t % 3 === 2 ? 1 : 0, hasFloor && t % 4 === 3, 0, true]);
+    for (let t = 0; t < tries; t++) extra.push([modes[t % modes.length], t % 5 === 4 ? 1 : t % 5 >= 2 ? 2 : 0, hasFloor && t % 4 === 3, 0, true]);
     for (let ri = 0; ri < runList.length + extra.length; ri++) {
       if (!tries && ri === runList.length && best && !best.rest.length && items.length > 70) break;
       if (opt.deadline && ri >= runList.length && Date.now() > opt.deadline) break;
       const [mode, variant, ff, , shuf] = ri < runList.length ? runList[ri] : extra[ri - runList.length];
-      let list = sortItems(items, opt, variant, ff);
+      const vopt = shuf ? { ...opt, tilts: ri % 3 !== 0, smallD: [0.8, 1.0, 1.25, 1.5][ri % 4], ...(ri % 2 ? { rnd } : {}) } : opt;
+      let list = sortItems(items, vopt, variant, ff);
       if (shuf) list = shuffleItems(list, opt, rnd);
       const placements = [], used = [];
       vani.forEach((V, vi) => {
-        const r = packVano(list, V, opt, mode, fixedBy[vi]);
+        const r = packVano(list, V, vopt, mode, fixedBy[vi]);
         r.placed.forEach(p => placements.push({ ...p, vano: vi }));
         used.push(r.placed.reduce((m, p) => Math.max(m, rightOf(p)), 0));
         list = r.rest;
