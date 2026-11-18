@@ -661,9 +661,13 @@ const Lib = (() => {
       if (/NERO/.test(D)) return 'CORRUGAR_NERO';
       return 'CORRUGAR';
     }
+    // Fluid (corrugato da fognatura, codici 43…) = stesse misure del Superfluid, anche se la descrizione dice "HDPE"
+    if (/\bFLUID\b/.test(D)) return 'SUPERFLUID';
     if (/REDLINE/.test(D)) return 'REDLINE';
     if (/IRRIGA/.test(D)) return 'IRRIGA';
     if (/GARDEN/.test(D)) return 'GARDEN';
+    // un tubo corrugato non è mai Polier (liscio): si decide dal codice
+    if (/\bCORR/.test(D) && !/POLIER/.test(D)) return null;
     if (/POLIER|PE\s?100|HDPE|PEAD|LDPE/.test(D)) {
       if (/GAS/.test(D)) return 'POLIER_GAS';
       if (/RC\s?2/.test(D)) return 'POLIER_RC2';
