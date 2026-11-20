@@ -1447,7 +1447,9 @@ const Lib = (() => {
           const px = cx + sx * r, pz = cz + sz * r;
           if (under.some(p => Math.abs(p.y + p.h - base) < 0.04 && px >= p.x && px <= p.x + p.lx && pz >= p.z && pz <= p.z + p.lz)) ok++;
         }
-        if (ok / SAMPLES.length < 0.6) continue;
+        // sopra un bancale il rotolo deve essere quasi tutto appoggiato: una sporgenza grande copre la corsia accanto
+        // (sotto resterebbe poco spazio) ed è poco sicura
+        if (ok / SAMPLES.length < 0.85) continue;
       }
       consider(cx, cz, base, s0);
     }
@@ -1599,16 +1601,47 @@ const Lib = (() => {
     const extra = [];
     for (const mode of modes) { extra.push([mode, 1, false, 0, false]); if (hasFloor) extra.push([mode, 0, true, 0, false]); }
     if (!items.length) runList.splice(1);
+    // ottimizzazione a blocchi: si riparte dalla sequenza migliore del blocco precedente (per firma dei colli)
+    if (opt.start && opt.tries) runList.splice(0, runList.length, [opt.start.mode, 0, false, 0, false, opt.start]);
     // prove in più (pulsante "Ottimizza"): stesse regole, ordine di posa dei colli mescolato
     const tries = opt.tries || 0, rnd = rng(opt.seed || 1);
     for (let t = 0; t < tries; t++) extra.push([modes[t % modes.length], t % 5 === 4 ? 1 : t % 5 >= 2 ? 2 : 0, hasFloor && t % 4 === 3, 0, true]);
+    // confronto tra due carichi: meno colli fuori, poi meno volume fuori, poi meno pianale (25 cm di tolleranza)
+    const better = (a, b) => a.rest.length < b.rest.length || (a.rest.length === b.rest.length &&
+      (a.volOut < b.volOut - 1e-6 || (Math.abs(a.volOut - b.volOut) <= 1e-6 && a.usedTot < b.usedTot - 0.25)));
+    // ricerca "in salita": la maggior parte delle prove riparte dalla sequenza migliore trovata e la cambia di poco
+    // (scambia o sposta 1-3 colli dello stesso scarico e tipo); se il carico non peggiora, si riparte da lì
+    let climb = null;
+    const gkey = i => i.seq + '|' + i.kind + (i.aTerra ? 't' : '');
+    const mutate = order => {
+      const out = order.slice(), n = 1 + Math.floor(rnd() * 3);
+      for (let k = 0; k < n; k++) {
+        const i = Math.floor(rnd() * out.length), same = [];
+        for (let j = 0; j < out.length; j++) if (j !== i && gkey(out[j]) === gkey(out[i])) same.push(j);
+        if (!same.length) continue;
+        const j = same[Math.floor(rnd() * same.length)];
+        if (rnd() < 0.5) [out[i], out[j]] = [out[j], out[i]];
+        else { const [x] = out.splice(i, 1); out.splice(j > i ? j - 1 : j, 0, x); }
+      }
+      return out;
+    };
     for (let ri = 0; ri < runList.length + extra.length; ri++) {
       if (!tries && ri === runList.length && best && !best.rest.length && items.length > 70) break;
       if (opt.deadline && ri >= runList.length && Date.now() > opt.deadline) break;
-      const [mode, variant, ff, , shuf] = ri < runList.length ? runList[ri] : extra[ri - runList.length];
-      const vopt = shuf ? { ...opt, tilts: ri % 3 !== 0, smallD: [0.8, 1.0, 1.25, 1.5][ri % 4], ...(ri % 2 ? { rnd } : {}) } : opt;
-      let list = sortItems(items, vopt, variant, ff);
-      if (shuf) list = shuffleItems(list, opt, rnd);
+      let [mode, variant, ff, , shuf, start] = ri < runList.length ? runList[ri] : extra[ri - runList.length];
+      let vopt, list;
+      if (start) {
+        const bySig = new Map(items.map(i => [i.sig, i])), seen = new Set();
+        list = start.sigs.map(sg => bySig.get(sg)).filter(i => i && !seen.has(i.id) && seen.add(i.id));
+        list = list.concat(sortItems(items.filter(i => !seen.has(i.id)), opt, 0, false));
+        vopt = { ...opt, tilts: start.tilts, smallD: start.smallD };
+      } else if (shuf && climb && rnd() < 0.7) { vopt = climb.vopt; mode = climb.mode; list = mutate(climb.order); }
+      else {
+        vopt = shuf ? { ...opt, tilts: ri % 3 !== 0, smallD: [0.8, 1.0, 1.25, 1.5][ri % 4], ...(ri % 2 ? { rnd } : {}) } : opt;
+        list = sortItems(items, vopt, variant, ff);
+        if (shuf) list = shuffleItems(list, opt, rnd);
+      }
+      const order = list.slice();
       const placements = [], used = [];
       vani.forEach((V, vi) => {
         const r = packVano(list, V, vopt, mode, fixedBy[vi]);
@@ -1619,9 +1652,12 @@ const Lib = (() => {
       const volOut = list.reduce((s, i) => s + volOf(i), 0);
       const usedTot = used.reduce((a, b) => a + b, 0);
       const res = { placements, used, rest: list, volOut, usedTot, mode };
+      if (tries && !vopt.rnd && (!climb || !better(climb.res, res))) climb = { order, vopt, mode, res };
+      if (start) { res.fromStart = true; }
       if (!best || res.rest.length < best.rest.length || (res.rest.length === best.rest.length &&
         (volOut < best.volOut - 1e-6 || (Math.abs(volOut - best.volOut) <= 1e-6 && usedTot < best.usedTot - 0.25)))) best = res;
     }
+    if (climb) best.climbInfo = { sigs: climb.order.map(i => i.sig), mode: climb.mode, tilts: !!climb.vopt.tilts, smallD: climb.vopt.smallD };
     best.dropped = dropped;
     return best;
   }
@@ -1800,15 +1836,23 @@ const FIREBASE_DOC = 'carico-camion/database';
   let optimRun = null;
   // "Ottimizza carico": stesse regole di sempre, ma prova molti ordini di posa dei colli e tiene il carico più corto;
   // il risultato resta fermo (posizioni congelate) finché non cambiano ordini, mezzo o misure
+  // "Ottimizza carico": prova molte sequenze di posa (stesse regole di sempre) per al massimo 30 secondi, a blocchi:
+  // ogni blocco riparte dalla sequenza migliore trovata e la cambia di poco. Si vede l'avanzamento e si può fermare.
+  // Il risultato resta fermo (posizioni congelate); premendo di nuovo si riparte dal migliore trovato.
+  let optimizing = null;
   function optimize() {
+    const btn = $('#optim');
+    if (optimizing) { optimizing.stop = true; return; }
     if (!P || !P.items.length) return;
-    const before = P.usedTot, outBefore = P.rest.length, btn = $('#optim');
-    btn.disabled = true; btn.textContent = 'Sto ottimizzando…';
-    setTimeout(() => {
-      // le posizioni congelate dell'automatico non devono frenare la ricerca: restano solo quelle a mano e bloccate
-      for (const k in S.fixed) if (S.fixed[k].frozen) delete S.fixed[k];
-      optimRun = { ms: 4000, seed: (Date.now() % 100000) + 1 };
-      try { recompute(); } finally { optimRun = null; btn.disabled = false; btn.textContent = 'Ottimizza carico'; }
+    const before = P.usedTot, outBefore = P.rest.length, t0 = Date.now(), MAX = 30000;
+    let start = S.optStart && S.optStart.key === loadKey() ? S.optStart.climb : null, k = 0, lastBest = Date.now(), bestKey = null;
+    const seed0 = (Date.now() % 100000) + 1;
+    optimizing = { stop: false };
+    btn.textContent = 'Ferma ottimizzazione';
+    // le posizioni congelate dell'automatico non devono frenare la ricerca: restano solo quelle a mano e bloccate
+    for (const kk in S.fixed) if (S.fixed[kk].frozen) delete S.fixed[kk];
+    const finish = () => {
+      optimizing = null; btn.textContent = 'Ottimizza carico';
       const better = P.rest.length < outBefore || P.usedTot < before - 0.005;
       // fissa il risultato: i colli in automatico restano dove sono
       for (const p of P.placements) {
@@ -1816,9 +1860,23 @@ const FIREBASE_DOC = 'carico-camion/database';
         const { id, ...pl } = p; delete pl.fixed;
         S.fixed[it.sig] = { ...specOf(p), frozen: true, pl };
       }
-      S.frozenKey = loadKey(); recompute();
-      toast(better ? `Carico ottimizzato: ${fmt(P.usedTot)} m di pianale invece di ${fmt(before)} m${P.rest.length < outBefore ? `, ${outBefore - P.rest.length} colli in più nel mezzo` : ''}.` : 'Non ho trovato una disposizione più corta: il carico era già il migliore che riesco a calcolare.');
-    }, 40);
+      const climb = P.climbInfo || start;
+      S.frozenKey = loadKey(); S.optStart = climb ? { key: S.frozenKey, climb } : null; recompute();
+      toast(better ? `Carico ottimizzato: ${P.placements.length} colli nel mezzo${P.rest.length ? `, ${P.rest.length} fuori` : ', tutti dentro'}, ${fmt(P.usedTot)} m di pianale (prima ${outBefore ? `${outBefore} fuori, ` : ''}${fmt(before)} m). Premi di nuovo per cercare ancora.`
+        : 'Non ho trovato una disposizione migliore: premi di nuovo per cercare ancora.', better ? '' : 'warn');
+    };
+    const step = () => {
+      optimRun = { ms: 900, seed: seed0 + k++, start };
+      try { recompute(); } catch (e) { optimRun = null; finish(); throw e; }
+      optimRun = null;
+      if (P.climbInfo) start = P.climbInfo;
+      const key = P.rest.length + '|' + P.usedTot.toFixed(2);
+      if (key !== bestKey) { bestKey = key; lastBest = Date.now(); }
+      toast(`Ottimizzo… ${Math.round((Date.now() - t0) / 1000)} s: ${P.placements.length} colli nel mezzo${P.rest.length ? `, ${P.rest.length} fuori` : ''}, ${fmt(P.usedTot)} m. Premi “Ferma” per tenere questo risultato.`);
+      const stale = !P.rest.length && Date.now() - lastBest > 6000;
+      if (optimizing.stop || stale || Date.now() - t0 > MAX) finish(); else setTimeout(step, 30);
+    };
+    setTimeout(step, 40);
   }
   $('#optim').addEventListener('click', optimize);
   function recompute() {
@@ -1856,7 +1914,7 @@ const FIREBASE_DOC = 'carico-camion/database';
       if (S.fixed[it.sig] && S.fixed[it.sig].vano < vani.length) fixed.set(it.id, S.fixed[it.sig]);
     });
     const popt = { orient: S.cfg.orient, rispettaScarico: true, div: S.cfg.div, cV: S.cfg.cV / 100, cL: S.cfg.cL / 100, fixed };
-    if (optimRun) { popt.tries = 2000; popt.deadline = Date.now() + optimRun.ms; popt.seed = optimRun.seed; }
+    if (optimRun) { popt.tries = 2000; popt.deadline = Date.now() + optimRun.ms; popt.seed = optimRun.seed; if (optimRun.start) popt.start = optimRun.start; }
     let res = Lib.plan(items, vani, popt);
     // posizioni fissate che non stanno più nel mezzo (cambio di mezzo, colli tolti da sotto…): tornano in automatico.
     // Tolta una posizione, chi le stava sopra può restare senza appoggio: si ripete finché tutto è stabile.
