@@ -1084,6 +1084,15 @@ const Lib = (() => {
     else if (key[0] === 'B' && d.perRow > 0) { const od = d.od / 1000; d.palW = Math.max(o.palW || 0, widthFor(Math.round(d.perRow), od, woodOf(d))); }
     return d;
   }
+  // Rotoli di corrugato e drenaggio su bancale (quando il cliente lo chiede): rotoli per strato e strati per bancale,
+  // riferiti ai rotoli da 50 m (DN 200: da 25 m). Per altre lunghezze gli strati si adattano alla stessa altezza.
+  const RPAL = { 40: { per: 4, layers: 8, len: 50 }, 50: { per: 3, layers: 7, len: 50 }, 63: { per: 1, layers: 6, len: 50 }, 75: { per: 1, layers: 6, len: 50 },
+    90: { per: 1, layers: 6, len: 50 }, 110: { per: 1, layers: 4, len: 50 }, 125: { per: 1, layers: 4, len: 50 }, 160: { per: 1, layers: 4, len: 50 }, 200: { per: 1, layers: 4, len: 25 } };
+  const famName = f => (FAM[f] && (FAM[f].n || FAM[f].name)) || f;
+  const RPAL_BASE = 0.12; // altezza della pedana (m)
+  const rpalRule = dn => RPAL[dn] || (dn < 40 ? RPAL[40] : null);
+  // impronta di uno strato: 1 rotolo = quadrato; 3 = trifoglio; 4 = 2 x 2
+  const rpalFoot = (per, D) => per === 4 ? [2 * D, 2 * D] : per === 3 ? [2 * D, D * (1 + Math.sqrt(3) / 2)] : [D, D];
   function buildItems(orders, dims, cfg) {
     const items = [], info = [];
     let uid = 0;
@@ -1125,6 +1134,26 @@ const Lib = (() => {
           });
         }
       });
+      // rotoli di corrugato/drenaggio su bancale (spunta sull'ordine)
+      if (o.rpal) {
+        const cV = cfg.cV || 0, cL = cfg.cL || 0, groups = new Map();
+        for (const r of rolls) { if (FAM[r.fam] && FAM[r.fam].pe) continue; const rule = rpalRule(r.dn); if (!rule) continue; if (!groups.has(r.key)) groups.set(r.key, []); groups.get(r.key).push(r); }
+        for (const [key, list] of groups) {
+          const r0 = list[0], rule = rpalRule(r0.dn);
+          let layers = rule.layers;
+          if (r0.len !== rule.len) { const ref = dimsFor(key.replace(/\|[^|]*$/, '|' + rule.len), dims); if (ref && ref.Wd > 0 && r0.Wd > 0) layers = Math.max(1, Math.round(rule.layers * ref.Wd / r0.Wd)); }
+          const cap = rule.per * layers, Df = r0.D * (1 - cL), hf = r0.Wd * (1 - cV), [fx, fz] = rpalFoot(rule.per, Df);
+          for (let i = 0; i < list.length; i += cap) {
+            const n = Math.min(cap, list.length - i), nl = Math.ceil(n / rule.per);
+            const it = { id: uid++, kind: 'bar', generic: true, rp: { key, fam: r0.fam, dn: r0.dn, len: r0.len, D: r0.D, Wd: r0.Wd, dInt: r0.dInt, per: rule.per, layers: nl, n, base: RPAL_BASE, hf, Df },
+              orderId: o.id, seq: o.seq, lx: r3(fx), lz: r3(fz), h: r3(RPAL_BASE + nl * hf), hex: false, pos: [], mixed: false, stackable: false,
+              layers: [{ key, fam: r0.fam, dn: r0.dn, len: r0.len, n, name: `rotoli ${famName(r0.fam)} DN ${r0.dn} da ${r0.len} m`, unit: 'PZ' }], nPezzi: n, codice: r0.codice, desc: r0.desc };
+            items.push(it); r0.rec.ids.add(it.id);
+            list.slice(i, i + n).forEach(r => { r.onPal = true; });
+          }
+        }
+        for (let i = rolls.length - 1; i >= 0; i--) if (rolls[i].onPal) rolls.splice(i, 1);
+      }
       // barre: infilaggio, poi bancali
       nestBarPieces(pieces, cfg.nestBars);
       const top = pieces.filter(p => !p.parent);
@@ -1218,7 +1247,7 @@ const Lib = (() => {
   const EPS = 1e-6;
   function variants(it, mode, opt) {
     if (it.kind === 'bar') {
-      const a = { shape: 'box', lx: it.lx, lz: it.lz, h: it.h, o: 'bar', loose: !!it.loose, top: it.generic ? it.stackable !== false : true };
+      const a = { shape: 'box', lx: it.lx, lz: it.lz, h: it.h, o: 'bar', loose: !!it.loose, top: it.rp ? true : it.generic ? it.stackable !== false : true, rp: !!it.rp };
       return [it.generic && Math.abs(it.lx - it.lz) > 0.02 ? [a, { ...a, lx: it.lz, lz: it.lx, rot: true }] : [a]];
     }
     const cV = opt.cV || 0, cL = opt.cL || 0;
@@ -1291,6 +1320,7 @@ const Lib = (() => {
           if (!xzOver(me, p)) continue;
           // sopra un rotolo può stare solo un rotolo in piedi o inclinato, e solo su rotoli sdraiati
           if (p.kind === 'roll' && (it.kind !== 'roll' || p.shape !== 'cyl')) { bad = true; break; }
+          if (p.rp && it.kind !== 'roll') { bad = true; break; } // sopra un bancale di rotoli vanno solo rotoli sfusi
           under.push(p); const t = topFor(it, p); if (t > base) base = t;
           if (opt.rispettaScarico && p.seq < it.seq) { bad = true; break; }
         }
@@ -1328,7 +1358,7 @@ const Lib = (() => {
         }
         const s0 = x + v.lx;
         if (!best || s0 < best.s0 - EPS || (Math.abs(s0 - best.s0) <= EPS && (base < best.y - EPS || (Math.abs(base - best.y) <= EPS && z < best.z - EPS)))) {
-          best = { shape: 'box', x, y: base, z, s0, lx: v.lx, lz: v.lz, h: v.h, o: v.o, top: v.top, rot: v.rot, tilt: v.tilt, yaw: v.yaw };
+          best = { shape: 'box', x, y: base, z, s0, lx: v.lx, lz: v.lz, h: v.h, o: v.o, top: v.top, rot: v.rot, tilt: v.tilt, yaw: v.yaw, rp: v.rp };
         }
       }
     }
@@ -1571,7 +1601,7 @@ const Lib = (() => {
         const lx = rot ? it.lz : it.lx, lz = rot ? it.lx : it.lz;
         if (sp.cx - lx / 2 < -0.02 || sp.cx + lx / 2 > V.L + 0.02 || sp.cz - lz / 2 < -0.02 || sp.cz + lz / 2 > V.W + 0.02) { dropped.push(it.id); continue; }
         const x = Math.max(0, Math.min(V.L - lx, sp.cx - lx / 2)), z = Math.max(0, Math.min(V.W - lz, sp.cz - lz / 2));
-        p = { shape: 'box', x, z, lx, lz, h: it.h, o: 'bar', loose: !!it.loose, top: it.generic ? it.stackable !== false : true, rot };
+        p = { shape: 'box', x, z, lx, lz, h: it.h, o: 'bar', loose: !!it.loose, top: it.rp ? true : it.generic ? it.stackable !== false : true, rot, rp: !!it.rp };
       } else {
         const bb = rollAABB(it, sp.tilt || 0, sp.yaw || 0, opt);
         if (sp.cx - bb.hx < -0.02 || sp.cx + bb.hx > V.L + 0.02 || sp.cz - bb.hz < -0.02 || sp.cz + bb.hz > V.W + 0.02) { dropped.push(it.id); continue; }
@@ -1904,7 +1934,7 @@ const FIREBASE_DOC = 'carico-camion/database';
     }));
     // quantità scelta da caricare (se cambiata) al posto di quella ordinata
     const activeQ = active.map(o => ({ ...o, righe: o.righe.map(r => r.carico == null ? r : { ...r, qta: r.carico, bancali: null }) }));
-    const { items, info } = Lib.buildItems(activeQ, S.dims, { truckW: S.cfg.W, nestBars: S.cfg.nestBars, nestRolls: S.cfg.nestRolls, mixPal: S.cfg.mixPal });
+    const { items, info } = Lib.buildItems(activeQ, S.dims, { truckW: S.cfg.W, nestBars: S.cfg.nestBars, nestRolls: S.cfg.nestRolls, mixPal: S.cfg.mixPal, cV: S.cfg.cV / 100, cL: S.cfg.cL / 100 });
     info.forEach(rec => { const m = (vmap.get(rec.orderId) || [])[rec.riga]; rec.vriga = rec.riga; if (m) { rec.srcOrder = m[0]; rec.riga = m[1]; } else rec.srcOrder = rec.orderId; });
     // firma stabile di ogni collo, per ricordare quelli spostati a mano
     const occ = new Map(), fixed = new Map();
@@ -2031,7 +2061,7 @@ const FIREBASE_DOC = 'carico-camion/database';
             <button data-act="del" aria-label="Togli ordine" title="Togli ordine">✕</button>
           </div>
         </header>
-        <div class="o-meta"><label class="chk"><input type="checkbox" data-act="on" ${on ? 'checked' : ''}> In questo carico</label>${on ? `<label class="chk" title="I colli di questo ordine restano dove sono e non si possono spostare"><input type="checkbox" data-act="lock" ${o.locked ? 'checked' : ''}> Blocca posizioni</label>` : ''}${status}</div>
+        <div class="o-meta"><label class="chk"><input type="checkbox" data-act="on" ${on ? 'checked' : ''}> In questo carico</label>${on ? `<label class="chk" title="I colli di questo ordine restano dove sono e non si possono spostare"><input type="checkbox" data-act="lock" ${o.locked ? 'checked' : ''}> Blocca posizioni</label><label class="chk" title="Rotoli di corrugato e drenaggio messi su bancale: DN 40 4 x 8 strati, DN 50 3 a trifoglio x 7, DN 63-90 6 uno sopra l'altro, DN 110-200 4"><input type="checkbox" data-act="rpal" ${o.rpal ? 'checked' : ''}> Rotoli su bancale</label>` : ''}${status}</div>
         ${join}
         <details${openIds.has(String(o.id)) ? ' open' : ''}><summary>${o.righe.length} righe d’ordine</summary>
           <table class="lines"><tbody>${rows}</tbody></table>
@@ -2153,6 +2183,7 @@ const FIREBASE_DOC = 'carico-camion/database';
       else { const v = Math.round(parseFloat(e.target.value)); if (v > 0) r.perRow = v; else delete r.perRow; }
       recompute(); return;
     }
+    if (e.target.dataset.act === 'rpal') { const o = S.orders.find(o => o.id === +e.target.closest('.order').dataset.id); const lead = o.with || o.id; S.orders.filter(x => x.id === lead || x.with === lead).forEach(x => { x.rpal = e.target.checked; }); recompute(); return; }
     if (e.target.dataset.act === 'lock') { setLock(S.orders.find(o => o.id === +e.target.closest('.order').dataset.id), e.target.checked); return; }
     if (e.target.dataset.act !== 'on') return;
     const o = S.orders.find(o => o.id === +e.target.closest('.order').dataset.id);
@@ -3081,6 +3112,23 @@ const FIREBASE_DOC = 'carico-camion/database';
   }
 
   /* ---------- Bancale o collo a misura: bancale in legno con un blocco sopra ---------- */
+  // bancale di rotoli: pedana in legno grande quanto l'impronta dei rotoli, rotoli sdraiati a strati
+  function makeRollPallet(p, it, clientColor) {
+    const g = new THREE.Group(), rp = it.rp, L = it.lx, W = it.lz, H = it.h, y0 = -H / 2, wood = woodMat(), base = rp.base;
+    for (const i of [-1, 0, 1]) { const m = new THREE.Mesh(new THREE.BoxGeometry(0.1, base - 0.022, W * 0.96), wood); m.position.set(i * (L / 2 - 0.06), y0 + (base - 0.022) / 2, 0); g.add(m); }
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(L, 0.022, W), wood); deck.position.set(0, y0 + base - 0.011, 0); g.add(deck);
+    const D = rp.Df, r = D / 2;
+    const slots = rp.per === 4 ? [[-r, -r], [r, -r], [-r, r], [r, r]] : rp.per === 3 ? [[-r, -W / 2 + r], [r, -W / 2 + r], [0, -W / 2 + r + D * Math.sqrt(3) / 2]] : [[0, 0]];
+    const roll = { kind: 'roll', key: rp.key, fam: rp.fam, dn: rp.dn, len: rp.len, D: rp.D, Wd: rp.Wd, dInt: rp.dInt, guests: [] };
+    for (let k = 0; k < rp.n; k++) {
+      const layer = Math.floor(k / rp.per), [sx, sz] = slots[k % rp.per];
+      const m = makeRoll(roll, clientColor);
+      m.scale.set(D / rp.D, rp.hf / rp.Wd, D / rp.D);
+      m.position.set(sx, y0 + base + layer * rp.hf + rp.hf / 2, sz);
+      g.add(m);
+    }
+    return g;
+  }
   function makeGeneric(p, it, clientColor) {
     const g = new THREE.Group(), real = S.cfg.colori === 'reali';
     const L = it.lx, W = it.lz, H = it.h, lay = it.layers[0], F = famOf(lay.fam);
@@ -3197,7 +3245,7 @@ const FIREBASE_DOC = 'carico-camion/database';
   function makeObj(p, it, color) {
     const cV = S.cfg.cV / 100, cL = S.cfg.cL / 100;
     let g;
-    if (it.kind === 'bar') { g = it.generic ? makeGeneric(p, it, color) : makePallet(p, it, color); if (it.generic && p.rot) g.rotation.y = Math.PI / 2; }
+    if (it.kind === 'bar') { g = it.rp ? makeRollPallet(p, it, color) : it.generic ? makeGeneric(p, it, color) : makePallet(p, it, color); if (it.generic && p.rot) g.rotation.y = Math.PI / 2; }
     else {
       g = makeRoll(it, color);
       if (p.o === 'flat') g.scale.set(1 - cL, 1 - cV, 1 - cL);
@@ -3252,7 +3300,8 @@ const FIREBASE_DOC = 'carico-camion/database';
     dirty = true;
   }
   const describe = it => it.kind === 'bar'
-    ? it.generic ? 'bancale di ' + it.layers.map(l => `${fmt(l.n, l.n % 1 ? 1 : 0)} × ${l.name}`).join(', ')
+    ? it.rp ? `bancale di ${it.rp.n} rotoli ${famOf(it.rp.fam).n} DN ${it.rp.dn}`
+    : it.generic ? 'bancale di ' + it.layers.map(l => `${fmt(l.n, l.n % 1 ? 1 : 0)} × ${l.name}`).join(', ')
       : (it.mixed ? 'bancale misto di ' : 'bancale di ') + it.layers.map(l => `${l.n} ${famOf(l.fam).n} DN ${l.dn}`).join(', ')
     : `rotolo ${famOf(it.fam).n} DN ${it.dn}`;
   function syncAnimUi() {
@@ -3310,7 +3359,8 @@ const FIREBASE_DOC = 'carico-camion/database';
     hoverBox = new THREE.Box3Helper(new THREE.Box3().setFromCenterAndSize(g.position, size.clone().addScalar(0.03)), new THREE.Color(T.ink)); scene.add(hoverBox); dirty = true;
     let how, extra = '';
     if (it.kind === 'bar') {
-      how = it.generic ? 'Bancale a misura: ' + it.layers.map(l => `${fmt(l.n, l.n % 1 ? 1 : 0)} × ${l.name}${it.stackable ? '' : ' (non impilabile)'}`).join(', ')
+      how = it.rp ? `Bancale di ${it.rp.n} rotoli ${famOf(it.rp.fam).n} DN ${it.rp.dn} da ${fmt(it.rp.len, 0)} m (${it.rp.per === 4 ? '4 per strato' : it.rp.per === 3 ? '3 per strato, a trifoglio' : 'uno sopra l’altro'}, ${it.rp.layers} ${it.rp.layers === 1 ? 'strato' : 'strati'}), pedana ${fmt(it.lx)} × ${fmt(it.lz)} m; sopra si possono mettere rotoli sfusi`
+        : it.generic ? 'Bancale a misura: ' + it.layers.map(l => `${fmt(l.n, l.n % 1 ? 1 : 0)} × ${l.name}${it.stackable ? '' : ' (non impilabile)'}`).join(', ')
         : (it.mixed ? 'Bancale misto: ' : 'Bancale: ') + it.layers.map(l => `${l.n} ${l.n === 1 ? 'barra' : 'barre'} ${famOf(l.fam).n} DN ${l.dn} da ${fmt(l.len, 0)} m`).join(', ');
       const nested = it.pos.reduce((s, q) => s + countGuests(q.p.guests), 0);
       if (nested) extra = `<span>Con ${nested} ${nested === 1 ? 'barra infilata' : 'barre infilate'} dentro i tubi</span>`;
@@ -3363,7 +3413,7 @@ const FIREBASE_DOC = 'carico-camion/database';
   function plOf(it, sp, y) {
     const fp = footprint(it, sp);
     const o = it.kind === 'bar' ? 'bar' : fp.shape === 'cyl' ? 'flat' : 'free';
-    return { id: it.id, kind: it.kind, seq: it.seq, vano: sp.vano, shape: fp.shape, cx: sp.cx, cz: sp.cz, r: fp.r, x: sp.cx - fp.hx, z: sp.cz - fp.hz, lx: 2 * fp.hx, lz: 2 * fp.hz, h: fp.h, y, o, tilt: sp.tilt, yaw: sp.yaw, rot: fp.rot, wT: it.wood ? it.wood.t : undefined, top: it.kind === 'bar' ? (it.generic ? it.stackable !== false : true) : false };
+    return { id: it.id, kind: it.kind, seq: it.seq, rp: !!it.rp, vano: sp.vano, shape: fp.shape, cx: sp.cx, cz: sp.cz, r: fp.r, x: sp.cx - fp.hx, z: sp.cz - fp.hz, lx: 2 * fp.hx, lz: 2 * fp.hz, h: fp.h, y, o, tilt: sp.tilt, yaw: sp.yaw, rot: fp.rot, wT: it.wood ? it.wood.t : undefined, top: it.kind === 'bar' ? (it.generic ? it.stackable !== false : true) : false };
   }
   function overlapXZ(a, b) {
     const [ax, az] = centerOf(a), [bx, bz] = centerOf(b);
