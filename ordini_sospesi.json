@@ -356,6 +356,39 @@
      "azione": "sospeso tutto"
     }
    ]
+  },
+  {
+   "num": "371",
+   "data": "26/01/2026",
+   "cliente": "PLASTOMEC srl",
+   "righe": {
+    "19P110": {
+     "sospesa": null
+    },
+    "19P125": {
+     "sospesa": null
+    },
+    "19P160": {
+     "sospesa": null
+    }
+   },
+   "storico": [
+    {
+     "quando": "25/11/2026 14:41",
+     "art": "19P110",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:41",
+     "art": "19P125",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:41",
+     "art": "19P160",
+     "azione": "sospeso tutto"
+    }
+   ]
   }
  ]
 }
