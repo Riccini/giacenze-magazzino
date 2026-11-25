@@ -600,6 +600,31 @@
      "azione": "sospeso tutto"
     }
    ]
+  },
+  {
+   "num": "4641",
+   "data": "14/10/2025",
+   "cliente": "PLASTOMEC srl",
+   "righe": {
+    "19P125": {
+     "sospesa": null
+    },
+    "19P160": {
+     "sospesa": null
+    }
+   },
+   "storico": [
+    {
+     "quando": "25/11/2026 14:44",
+     "art": "19P125",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:44",
+     "art": "19P160",
+     "azione": "sospeso tutto"
+    }
+   ]
   }
  ]
 }
