@@ -145,6 +145,127 @@
      "azione": "sospeso tutto"
     }
    ]
+  },
+  {
+   "num": "1558",
+   "data": "13/04/2026",
+   "cliente": "TIBIPLASTIC SRL",
+   "righe": {
+    "19P050": {
+     "sospesa": null
+    },
+    "19P063": {
+     "sospesa": null
+    },
+    "19P090": {
+     "sospesa": null
+    },
+    "19P160": {
+     "sospesa": null
+    },
+    "19P200": {
+     "sospesa": null
+    },
+    "19DP160": {
+     "sospesa": null
+    },
+    "19DP125": {
+     "sospesa": null
+    },
+    "19DP110": {
+     "sospesa": null
+    },
+    "19DP063": {
+     "sospesa": null
+    },
+    "19MC090": {
+     "sospesa": null
+    },
+    "19MC110": {
+     "sospesa": null
+    },
+    "19MC125": {
+     "sospesa": null
+    },
+    "19MC160": {
+     "sospesa": null
+    },
+    "19MC200": {
+     "sospesa": null
+    }
+   },
+   "storico": [
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19P050",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19P063",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19P090",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19P160",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19P200",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19DP160",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19DP125",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19DP110",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19DP063",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19MC090",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19MC110",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19MC125",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19MC160",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19MC200",
+     "azione": "sospeso tutto"
+    }
+   ]
   }
  ]
 }
