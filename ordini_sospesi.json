@@ -487,6 +487,119 @@
      "azione": "sospeso tutto"
     }
    ]
+  },
+  {
+   "num": "5682",
+   "data": "22/12/2025",
+   "cliente": "IDROPLAST VERNOCCHI srl",
+   "righe": {
+    "19DP090": {
+     "sospesa": null
+    },
+    "19DP125": {
+     "sospesa": null
+    },
+    "19DP160": {
+     "sospesa": null
+    },
+    "19DP200": {
+     "sospesa": null
+    },
+    "19P040": {
+     "sospesa": null
+    },
+    "19P050": {
+     "sospesa": null
+    },
+    "19P063": {
+     "sospesa": null
+    },
+    "19P075": {
+     "sospesa": null
+    },
+    "19P090": {
+     "sospesa": null
+    },
+    "19P110": {
+     "sospesa": null
+    },
+    "19P125": {
+     "sospesa": null
+    },
+    "19P160": {
+     "sospesa": null
+    },
+    "19P200": {
+     "sospesa": null
+    }
+   },
+   "storico": [
+    {
+     "quando": "25/11/2026 14:43",
+     "art": "19DP090",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:43",
+     "art": "19DP125",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:43",
+     "art": "19DP160",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:43",
+     "art": "19DP200",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:43",
+     "art": "19P040",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:43",
+     "art": "19P050",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:43",
+     "art": "19P063",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:43",
+     "art": "19P075",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:43",
+     "art": "19P090",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:43",
+     "art": "19P110",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:43",
+     "art": "19P125",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:43",
+     "art": "19P160",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:43",
+     "art": "19P200",
+     "azione": "sospeso tutto"
+    }
+   ]
   }
  ]
 }
