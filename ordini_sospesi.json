@@ -120,6 +120,31 @@
      "azione": "sospeso tutto"
     }
    ]
+  },
+  {
+   "num": "3642",
+   "data": "08/09/2026",
+   "cliente": "ELN SRL",
+   "righe": {
+    "08IR25P06": {
+     "sospesa": null
+    },
+    "08IR32P06": {
+     "sospesa": null
+    }
+   },
+   "storico": [
+    {
+     "quando": "25/11/2026 10:45",
+     "art": "08IR25P06",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:45",
+     "art": "08IR32P06",
+     "azione": "sospeso tutto"
+    }
+   ]
   }
  ]
 }
