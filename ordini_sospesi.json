@@ -266,6 +266,55 @@
      "azione": "sospeso tutto"
     }
    ]
+  },
+  {
+   "num": "2008",
+   "data": "12/05/2026",
+   "cliente": "EDP.PLASTUBI SRL",
+   "righe": {
+    "19P075": {
+     "sospesa": null
+    },
+    "19P090": {
+     "sospesa": null
+    },
+    "19P125": {
+     "sospesa": null
+    },
+    "19P160": {
+     "sospesa": null
+    },
+    "19P200": {
+     "sospesa": null
+    }
+   },
+   "storico": [
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19P075",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19P090",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19P125",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19P160",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:47",
+     "art": "19P200",
+     "azione": "sospeso tutto"
+    }
+   ]
   }
  ]
 }
