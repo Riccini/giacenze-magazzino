@@ -389,6 +389,87 @@
      "azione": "sospeso tutto"
     }
    ]
+  },
+  {
+   "num": "1864",
+   "data": "22/04/2024",
+   "cliente": "PLASTOMEC srl",
+   "righe": {
+    "19P040": {
+     "sospesa": null
+    },
+    "19P050": {
+     "sospesa": null
+    },
+    "19P063": {
+     "sospesa": null
+    },
+    "19P075": {
+     "sospesa": null
+    },
+    "19P090": {
+     "sospesa": null
+    },
+    "19P110": {
+     "sospesa": null
+    },
+    "19P125": {
+     "sospesa": null
+    },
+    "19P160": {
+     "sospesa": null
+    },
+    "19P200": {
+     "sospesa": null
+    }
+   },
+   "storico": [
+    {
+     "quando": "25/11/2026 14:41",
+     "art": "19P040",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:41",
+     "art": "19P050",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:41",
+     "art": "19P063",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:41",
+     "art": "19P075",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:41",
+     "art": "19P090",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:41",
+     "art": "19P110",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:41",
+     "art": "19P125",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:41",
+     "art": "19P160",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 14:41",
+     "art": "19P200",
+     "azione": "sospeso tutto"
+    }
+   ]
   }
  ]
 }
