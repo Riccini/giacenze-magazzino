@@ -3,6 +3,7 @@ from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
 from openpyxl import load_workbook
+from sospesi import carica_sospesi, calcola as calcola_sospesi, data_it
 
 # ── LISTA ARTICOLI (anagrafica: codice -> categoria/diametro/nome) ──
 wb_lista = load_workbook("Lista Articoli per consultazione.xlsx", read_only=True, data_only=True)
@@ -81,16 +82,30 @@ if ord_file:
     idx_desc = headers_ord.index("ARDESART")
     idx_riga = headers_ord.index("CPROWORD") if "CPROWORD" in headers_ord else None
 
+    righe_ord = []
     for row in ws_ord.iter_rows(min_row=2, values_only=True):
         codice = str(row[idx_art] or "").strip()
         cliente = row[idx_cliente]
         if not codice or not cliente:
             continue
+        righe_ord.append({"row": row, "art": codice, "num": str(row[idx_numdoc] or "").strip(),
+                          "data": data_it(row[idx_datdoc]), "qta": float(row[idx_qta] or 0)})
+
+    # ── ORDINI SOSPESI: tolgo dall'impegnato le quantita' sospese ──
+    sosp_riga, sosp_art = calcola_sospesi(righe_ord, carica_sospesi())
+    for codice, q in sosp_art.items():
+        if codice in saldi:
+            saldi[codice]["sospeso"] = q
+            saldi[codice]["impegnato"] = max(0, saldi[codice]["impegnato"] - q)
+
+    for r, sosp in zip(righe_ord, sosp_riga):
+        row = r["row"]; codice = r["art"]; cliente = row[idx_cliente]
         data_ev = row[idx_evasione]
         data_str = data_ev.strftime("%Y-%m-%d") if hasattr(data_ev, "strftime") else (str(data_ev)[:10] if data_ev else None)
         ordini_per_articolo[codice].append({
             "cliente": cliente,
             "quantita": row[idx_qta] or 0,
+            "sospesa": round(sosp),
             "data_evasione": data_str
         })
 
@@ -107,6 +122,7 @@ if ord_file:
                 "descrizione": row[idx_desc],
                 "cliente": cliente,
                 "quantita": row[idx_qta] or 0,
+                "sospesa": round(sosp),
                 "giacenza": s["giacenza"],
                 "impegnato": s["impegnato"],
                 "disponibile": disp,
@@ -161,6 +177,7 @@ for codice, info in anagrafica.items():
         "nome_visualizzare": info["nome_visualizzare"],
         "giacenza": giacenza,
         "impegnato": impegnato,
+        "sospeso": round(s.get("sospeso", 0)),
         "ordinato": s["ordinato"],
         "disponibile": disponibile,
         "pct": calc_pct(giacenza, impegnato, disponibile),

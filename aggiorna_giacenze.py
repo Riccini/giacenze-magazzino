@@ -3,6 +3,7 @@ from openpyxl import load_workbook
 from pathlib import Path
 from datetime import datetime
 from collections import defaultdict
+from sospesi import carica_sospesi, calcola as calcola_sospesi
 
 FOGLIO_MAP = {
     "Corrugar Rotoli":          ("Corrugar",   "Rotoli"),
@@ -160,6 +161,7 @@ ordini_art = defaultdict(list)
 clienti_dict = {}
 ordini_cli = defaultdict(lambda: defaultdict(lambda: {"righe":[], "totale":0.0}))
 
+righe_ord = []
 if ord_file:
     print(f"Ordini: {ord_file}")
     for row in load_workbook(ord_file, read_only=True).active.iter_rows(min_row=2, values_only=True):
@@ -178,17 +180,32 @@ if ord_file:
         except: tot_riga = 0
         if not cod_cli or not nome_cli or qta == 0: continue
         data_str = data_ord.strftime("%d/%m/%Y") if hasattr(data_ord,"strftime") else str(data_ord or "")[:10]
-        clienti_dict[cod_cli] = nome_cli
-        ordini_art[cod_art].append({"cli":nome_cli,"ord":num_doc,"dat":data_str,"qta":round(int(qta))})
-        ordini_cli[cod_cli][num_doc]["righe"].append(
-            {"art":cod_art,"des":desc_art,"dat":data_str,"qta":round(int(qta)),"um":um,"prez":round(prezzo,4)})
-        ordini_cli[cod_cli][num_doc]["totale"] += tot_riga
+        righe_ord.append({"cli_cod":cod_cli,"cli":nome_cli,"num":num_doc,"data":data_str,"art":cod_art,
+                          "des":desc_art,"um":um,"qta":qta,"prez":prezzo,"tot":tot_riga})
+
+# ── ORDINI SOSPESI (impegnato virtuale) ───────────────────────────
+SOSPESI = carica_sospesi()
+sosp_riga, sosp_art = calcola_sospesi(righe_ord, SOSPESI)
+
+if ord_file:
+    for r, s in zip(righe_ord, sosp_riga):
+        clienti_dict[r["cli_cod"]] = r["cli"]
+        o = {"cli":r["cli"],"ord":r["num"],"dat":r["data"],"qta":round(int(r["qta"]))}
+        if s: o["s"] = round(s)
+        ordini_art[r["art"]].append(o)
+        rr = {"art":r["art"],"des":r["des"],"dat":r["data"],"qta":round(int(r["qta"])),"um":r["um"],"prez":round(r["prez"],4)}
+        if s: rr["s"] = round(s)
+        ordini_cli[r["cli_cod"]][r["num"]]["righe"].append(rr)
+        ordini_cli[r["cli_cod"]][r["num"]]["totale"] += r["tot"]
     print(f"Clienti: {len(clienti_dict)}")
 
 # ── VARIANTI + DEDUP ──────────────────────────────────────────────
 for p in data:
     p["var"] = p.pop("var_custom") if p.get("var_custom") else get_var(p)
     p["ord"] = ordini_art.get(p["c"], [])
+    # impegnato reale = impegnato AdHoc meno le quantita' degli ordini sospesi
+    p["v"] = round(sosp_art.get(p["c"], 0))
+    p["l"] = max(0, p["l"] - p["v"])
 groups = defaultdict(list)
 for p in data: groups[(p["macro"],p["tipo"],p["diam"],p["var"])].append(p)
 for key, prods in groups.items():
@@ -203,7 +220,7 @@ for p in data:
     lines.append('{'
         + 'c:"'+esc(p["c"])+'"'
         + ',d:"'+esc(p["d"])+'"'
-        + ',i:'+str(p["i"])+',l:'+str(p["l"])
+        + ',i:'+str(p["i"])+',l:'+str(p["l"])+',v:'+str(p["v"])
         + ',"macro":"'+esc(p["macro"])+'"'
         + ',"tipo":"'+esc(p["tipo"])+'"'
         + ',"diam":"'+esc(p["diam"])+'"'
@@ -235,6 +252,8 @@ with open("index_template.html", encoding="utf-8") as f:
 html = re.sub(r"var DATA=\[.*?\];", data_js, html, flags=re.DOTALL)
 html = re.sub(r"var CLIENTI=\[.*?\];", cli_js, html, flags=re.DOTALL)
 html = re.sub(r"var ORDINI_CLI=\{.*?\};", ordini_js, html, flags=re.DOTALL)
+sospesi_js = "var SOSPESI=" + json.dumps(SOSPESI, ensure_ascii=False).replace("</", "<\\/") + ";"
+html = re.sub(r"var SOSPESI=\{.*?\};", lambda m: sospesi_js, html, count=1, flags=re.DOTALL)
 html = re.sub(r'Ultimo aggiornamento: <strong[^>]*>[^<]*</strong>',
               'Ultimo aggiornamento: <strong id="update-date">'+now+'</strong>', html)
 html = re.sub(r'<span class="topbar-badge">[^<]*</span>',

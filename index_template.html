@@ -45,7 +45,7 @@ button{cursor:pointer}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:57px;padding:10px 1rem;border-bottom:1px solid var(--line);background:var(--surface);position:sticky;top:0;z-index:10}
 .topbar-title{font:700 18px/1.1 var(--cond);letter-spacing:.01em;color:var(--ink)}
 .topbar-badge{font:600 13px/1 var(--cond);color:var(--muted);background:var(--sunk);border:1px solid var(--line);border-radius:99px;padding:5px 11px}
-.actions{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:8px 1rem;border-bottom:1px solid var(--line2)}
+.actions{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:5px;padding:8px 1rem;border-bottom:1px solid var(--line2)}
 .aggiorna-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:600 12px/1.1 var(--cond);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 2px;cursor:pointer;text-decoration:none;white-space:nowrap}
 .aggiorna-btn:active{background:var(--line2)}
 .aggiorna-btn .ic{font-size:16px;line-height:1}
@@ -146,6 +146,55 @@ button{cursor:pointer}
 .ordine-table .td-qta{text-align:right;white-space:nowrap;font:700 14px/1.3 var(--cond);width:60px}
 .ordine-table .td-prez{text-align:right;white-space:nowrap;color:var(--muted);font:500 13px/1.3 var(--cond);width:70px}
 .no-cli{padding:2rem;text-align:center;font-size:14px;color:var(--muted)}
+/* ordini sospesi: segni nelle schede */
+.sosp-tag{display:inline-block;margin-top:2px;font:600 11px/1.2 var(--cond);color:var(--muted);background:var(--sunk);border:1px dashed var(--sep);border-radius:5px;padding:1px 5px;white-space:nowrap}
+.stat-card.sosp{grid-column:1 / -1;border-style:dashed;background:var(--surface)}
+.stat-card.sosp .stat-val{color:var(--muted)}
+.stat-note{font-size:11px;color:var(--muted);margin-top:3px}
+/* finestra ordini sospesi */
+.sm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50;display:flex;align-items:flex-end;justify-content:center}
+.sm-box{background:var(--surface);width:100%;max-width:480px;max-height:92vh;max-height:92dvh;border-radius:14px 14px 0 0;display:flex;flex-direction:column;box-shadow:0 -6px 24px rgba(0,0,0,.18)}
+.sm-head{display:flex;align-items:center;gap:8px;padding:12px 12px 10px;border-bottom:1px solid var(--line)}
+.sm-head .sm-title{flex:1;font:700 18px/1.2 var(--cond);color:var(--ink)}
+.sm-icon{background:none;border:none;color:var(--accent);font:600 15px/1 var(--cond);padding:6px 8px;border-radius:6px}
+.sm-icon.x{color:var(--muted);font-size:18px}
+.sm-body{overflow-y:auto;padding:12px 1rem 1.5rem;-webkit-overflow-scrolling:touch}
+.sm-btn{display:block;width:100%;padding:11px;border-radius:var(--radius-sm);border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:600 15px/1.2 var(--font);margin:6px 0}
+.sm-btn.sec{background:var(--surface);color:var(--accent)}
+.sm-btn.danger{background:var(--surface);color:var(--red);border-color:var(--red)}
+.sm-btn.danger.armed{background:var(--red);color:var(--on-red)}
+.sm-btn:disabled{opacity:.5}
+.sm-btn.sm-inline{display:inline-block;width:auto;padding:7px 12px;font-size:13px;margin:6px 6px 0 0}
+.sm-card{border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 12px;margin:8px 0;background:var(--surface)}
+.sm-card.tap{cursor:pointer}
+.sm-card.tap:active{background:var(--sunk)}
+.sm-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.sm-t1{font:700 15px/1.25 var(--cond);color:var(--ink)}
+.sm-t2{font-size:12px;color:var(--muted);margin-top:2px}
+.sm-qta{font:700 18px/1.1 var(--cond);color:var(--ink);text-align:right;white-space:nowrap}
+.sm-qta small{display:block;font:500 11px/1.2 var(--font);color:var(--muted)}
+.sm-badge{display:inline-block;font:600 11px/1.2 var(--cond);border-radius:5px;padding:2px 6px;background:var(--warnbg);color:var(--warn)}
+.sm-nums{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.sm-nums div{background:var(--sunk);border-radius:6px;padding:6px;text-align:center}
+.sm-nums b{display:block;font:700 16px/1.2 var(--cond);color:var(--ink)}
+.sm-nums span{font-size:10.5px;color:var(--muted)}
+.sm-nums .sosp b{color:var(--muted)}
+.sm-nums .real b{color:var(--accent)}
+.sm-sec{font:600 11px/1 var(--cond);color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin:16px 0 4px}
+.sm-input{width:100%;padding:9px 10px;font-size:16px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--sunk);color:var(--ink);-webkit-appearance:none}
+.sm-input:focus{outline:none;border-color:var(--accent);background:var(--surface)}
+.sm-check{display:flex;gap:10px;align-items:flex-start;padding:9px 2px;border-bottom:1px solid var(--line2)}
+.sm-check input{width:20px;height:20px;margin-top:2px;flex:none;accent-color:var(--accent)}
+.sm-check label{flex:1}
+.sm-unlock{display:flex;gap:6px;margin-top:8px;align-items:center}
+.sm-unlock .sm-input{flex:1}
+.sm-unlock .sm-btn{width:auto;margin:0;padding:9px 14px}
+.sm-msg{font-size:13px;color:var(--muted);padding:6px 0;line-height:1.45}
+.sm-err{font-size:13px;color:var(--red);padding:4px 0}
+.sm-hist{font-size:12px;color:var(--muted);padding:4px 0;border-bottom:1px solid var(--line2)}
+.sm-toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:440px;width:calc(100% - 2rem);background:var(--ink);color:var(--bg);font-size:13px;line-height:1.4;padding:10px 14px;border-radius:10px;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.sm-toast.err{background:var(--red);color:var(--on-red)}
+.sm-link{background:none;border:none;color:var(--muted);text-decoration:underline;font-size:12px;padding:12px 0 0}
 </style>
 </head>
 <body>
@@ -160,6 +209,7 @@ button{cursor:pointer}
     <a class="aggiorna-btn" href="monitor_produzione.html"><span class="ic">&#128202;</span>Monitor</a>
     <a class="aggiorna-btn" href="verifica_disponibilita.html"><span class="ic">&#10003;</span>Verifica</a>
     <a class="aggiorna-btn" href="giacenze_3d.html"><span class="ic">&#129482;</span>3D</a>
+    <button class="aggiorna-btn hidden" id="btn-sospesi" onclick="apriSospesi()"><span class="ic">&#9208;</span>Sospesi</button>
   </div>
   <div class="update-bar">
     <span>Ultimo aggiornamento: <strong id="update-date">-</strong></span>
@@ -254,12 +304,24 @@ button{cursor:pointer}
   <div class="stats-grid">
     <div class="stat-card"><p class="stat-lbl">A terra</p><p class="stat-val" id="d-aterra"></p></div>
     <div class="stat-card"><p class="stat-lbl">Ordinato</p><p class="stat-val" id="d-ordinato"></p></div>
+    <div class="stat-card sosp hidden" id="d-sosp-card"><p class="stat-lbl">Ordini sospesi (impegnato virtuale)</p><p class="stat-val" id="d-sosp"></p><p class="stat-note">Non conteggiato nell'ordinato n&eacute; nel disponibile</p></div>
   </div>
   <div class="ordini-section">
     <p class="ordini-title">Dettaglio ordini clienti</p>
     <div id="ordini-body"></div>
   </div>
 </div>
+<div id="sosp-modal" class="sm-overlay hidden" onclick="if(event.target===this)chiudiSospesi()">
+  <div class="sm-box">
+    <div class="sm-head">
+      <button class="sm-icon hidden" id="sm-back">&#8592;</button>
+      <span class="sm-title" id="sm-title">Ordini sospesi</span>
+      <button class="sm-icon x" onclick="chiudiSospesi()" aria-label="Chiudi">&#10005;</button>
+    </div>
+    <div class="sm-body" id="sm-body"></div>
+  </div>
+</div>
+<div id="sm-toast" class="sm-toast hidden"></div>
 <script>
 var DATA=[];
 
@@ -464,6 +526,8 @@ function showDet(p){
   document.getElementById('av-um').textContent='ML';
   document.getElementById('d-aterra').textContent=p.i;
   document.getElementById('d-ordinato').textContent=p.l;
+  document.getElementById('d-sosp-card').classList.toggle('hidden',!p.v);
+  document.getElementById('d-sosp').textContent=p.v||0;
   var ords=p.ord||[];
   var ob=document.getElementById('ordini-body');
   if(!ords.length){
@@ -472,7 +536,7 @@ function showDet(p){
     var ht='<table class="ordini-table"><thead><tr><th>Cliente</th><th>N.Ord</th><th>Data</th><th style="text-align:right">Qt&agrave;</th></tr></thead><tbody>';
     for(var oi=0;oi<ords.length;oi++){
       var o=ords[oi];
-      ht+='<tr><td>'+o.cli+'</td><td class="num">'+o.ord+'</td><td class="num">'+o.dat+'</td><td class="qta">'+o.qta+'</td></tr>';
+      ht+='<tr><td>'+o.cli+'</td><td class="num">'+o.ord+'</td><td class="num">'+o.dat+'</td><td class="qta">'+o.qta+(o.s?'<br><span class="sosp-tag">sosp. '+o.s+'</span>':'')+'</td></tr>';
     }
     ht+='</tbody></table>';
     ob.innerHTML=ht;
@@ -607,7 +671,7 @@ function showCliente(cod){
         return '<tr>'
           +'<td class="td-art">'+r.art+'</td>'
           +'<td class="td-des">'+r.des+'</td>'
-          +'<td class="td-qta">'+r.qta+' '+r.um+'</td>'
+          +'<td class="td-qta">'+r.qta+' '+r.um+(r.s?'<br><span class="sosp-tag">sosp. '+r.s+'</span>':'')+'</td>'
           +'<td class="td-prez">'+r.prez.toFixed(2)+' €</td>'
           +'</tr>';
       }).join('');
@@ -626,6 +690,326 @@ function showCliente(cod){
 
 window.addEventListener('DOMContentLoaded', function(){
   initClienti();
+});
+
+// ── ORDINI SOSPESI (impegnato virtuale) ──────────────────────────
+// Le impostazioni stanno nel file ordini_sospesi.json del repository.
+// Questa finestra lo legge e lo scrive tramite l'API di GitHub con un
+// token salvato solo su questo dispositivo; il salvataggio fa ripartire
+// il workflow, che ricalcola impegnato e disponibile in tutte le pagine.
+var SOSPESI={};
+
+var GH_REPO='Riccini/giacenze-magazzino', GH_FILE='ordini_sospesi.json', GH_BRANCH='main';
+var TOKEN_KEY='riccini_giacenze_token';
+var SM={dati:null,sha:null,vista:'lista',key:null,q:'',busy:false,armato:null,sblocco:null};
+var PORT=null;
+
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{if(v===null)localStorage.removeItem(k);else localStorage.setItem(k,v);return true;}catch(e){return false;}}
+function ja(s){return hx(String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"));}
+function hx(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function fmtN(n){return Math.round(n||0).toLocaleString('it-IT');}
+function pad2(n){return (n<10?'0':'')+n;}
+function adesso(){var d=new Date();return pad2(d.getDate())+'/'+pad2(d.getMonth()+1)+'/'+d.getFullYear()+' '+pad2(d.getHours())+':'+pad2(d.getMinutes());}
+function dataOrd(s){var p=String(s||'').split('/');return p.length===3?p[2]+p[1]+p[0]:'';}
+function copia(o){return JSON.parse(JSON.stringify(o));}
+
+// Portafoglio raggruppato per ordine (numero + data) e articolo
+function portafoglio(){
+  if(PORT)return PORT;
+  PORT={};
+  var nomi={};CLIENTI.forEach(function(c){nomi[c.cod]=c.nome;});
+  Object.keys(ORDINI_CLI).forEach(function(cod){
+    ORDINI_CLI[cod].forEach(function(o){
+      o.righe.forEach(function(r){
+        var k=o.ord+'|'+r.dat;
+        var e=PORT[k]||(PORT[k]={key:k,num:o.ord,data:r.dat,cod:cod,cliente:nomi[cod]||cod,righe:{},arts:[]});
+        var a=e.righe[r.art];
+        if(!a){a=e.righe[r.art]={art:r.art,des:r.des,um:r.um,qta:0};e.arts.push(r.art);}
+        a.qta+=r.qta;
+      });
+    });
+  });
+  return PORT;
+}
+function keyOf(o){return o.num+'|'+o.data;}
+function trovaOrd(dati,key){var l=dati.ordini||[];for(var i=0;i<l.length;i++)if(keyOf(l[i])===key)return l[i];return null;}
+function residuo(key,art){var e=portafoglio()[key];return e&&e.righe[art]?e.righe[art].qta:0;}
+// quantita' effettivamente sospesa: null = tutto il residuo
+function effSosp(lim,res){return lim==null?res:Math.max(0,Math.min(lim,res));}
+
+// ── GitHub ──
+function b64enc(str){var b=new TextEncoder().encode(str),s='';for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s);}
+function b64dec(b64){var s=atob(String(b64).replace(/\s/g,'')),b=new Uint8Array(s.length);for(var i=0;i<s.length;i++)b[i]=s.charCodeAt(i);return new TextDecoder().decode(b);}
+function ghHeaders(){return {'Authorization':'Bearer '+lsGet(TOKEN_KEY),'Accept':'application/vnd.github+json'};}
+function ghErr(r){
+  if(r.status===401)return 'Accesso non valido o scaduto: inserisci di nuovo il codice di accesso.';
+  if(r.status===403||r.status===404)return 'Il codice di accesso non ha il permesso di scrivere nel repository.';
+  return 'Errore GitHub '+r.status+'. Riprova tra poco.';
+}
+function ghLoad(){
+  return fetch('https://api.github.com/repos/'+GH_REPO+'/contents/'+GH_FILE+'?ref='+GH_BRANCH+'&t='+Date.now(),{headers:ghHeaders(),cache:'no-store'})
+    .then(function(r){
+      if(r.status===404)return {dati:{ordini:[]},sha:null};
+      if(!r.ok)throw new Error(ghErr(r));
+      return r.json().then(function(j){
+        var d=JSON.parse(b64dec(j.content)||'{}');if(!d.ordini)d.ordini=[];
+        return {dati:d,sha:j.sha};
+      });
+    });
+}
+function ghSave(dati,sha,msg){
+  var body={message:msg,content:b64enc(JSON.stringify(dati,null,1)+'\n'),branch:GH_BRANCH};
+  if(sha)body.sha=sha;
+  return fetch('https://api.github.com/repos/'+GH_REPO+'/contents/'+GH_FILE,{method:'PUT',headers:ghHeaders(),body:JSON.stringify(body)})
+    .then(function(r){
+      if(r.status===409||r.status===422){var e=new Error('conflitto');e.conflitto=true;throw e;}
+      if(!r.ok)throw new Error(ghErr(r));
+      return r.json();
+    });
+}
+// Rilegge sempre l'ultima versione, applica la modifica e salva (un nuovo tentativo se qualcuno ha salvato nel frattempo)
+function salva(desc,modifica,dopo){
+  if(SM.busy)return;
+  SM.busy=true;render();
+  function tenta(n){
+    return ghLoad().then(function(x){
+      modifica(x.dati);
+      x.dati.ordini=x.dati.ordini.filter(function(o){return Object.keys(o.righe||{}).length>0;});
+      return ghSave(x.dati,x.sha,'Ordini sospesi: '+desc).then(function(res){SM.dati=x.dati;SM.sha=res.content&&res.content.sha;});
+    }).catch(function(e){if(e.conflitto&&n<3)return tenta(n+1);throw e;});
+  }
+  tenta(1).then(function(){
+    SM.busy=false;SM.armato=null;SM.sblocco=null;
+    if(dopo)dopo();
+    render();
+    toast('Salvato. Giacenze e disponibile si aggiornano tra 1-2 minuti: poi premi Aggiorna.');
+  }).catch(function(e){
+    SM.busy=false;render();
+    toast(e.conflitto?'Salvataggio non riuscito, riprova.':(e.message||'Errore di rete.'),true);
+  });
+}
+function storico(o,art,azione,qta){
+  o.storico=o.storico||[];
+  var h={quando:adesso(),art:art,azione:azione};if(qta!=null)h.qta=qta;
+  o.storico.push(h);
+}
+
+// ── Azioni ──
+function smAggiungi(key){
+  var e=portafoglio()[key];if(!e)return;
+  var scelti=[].slice.call(document.querySelectorAll('#sm-body input[data-art]:checked')).map(function(x){return x.getAttribute('data-art');});
+  if(!scelti.length){toast('Seleziona almeno un articolo.',true);return;}
+  var nota=(document.getElementById('sm-nota')||{}).value||'';
+  var tutto=scelti.length===e.arts.length;
+  salva('sospeso ordine '+e.num+' del '+e.data+(tutto?'':' ('+scelti.length+' righe)'),function(d){
+    var o=trovaOrd(d,key);
+    if(!o){o={num:e.num,data:e.data,cliente:e.cliente,righe:{},storico:[]};d.ordini.push(o);}
+    if(nota)o.note=nota;
+    scelti.forEach(function(a){if(!o.righe[a]){o.righe[a]={sospesa:null};storico(o,a,'sospeso tutto');}});
+  },function(){SM.vista='dettaglio';SM.key=key;});
+}
+function smSblocca(key,art){
+  var inp=document.getElementById('sm-sblocca-qta');
+  var x=parseFloat(String(inp&&inp.value||'').replace(/\./g,'').replace(',','.'));
+  var o=trovaOrd(SM.dati,key);if(!o||!o.righe[art])return;
+  var att=effSosp(o.righe[art].sospesa,residuo(key,art));
+  if(!(x>0)){toast('Scrivi la quantità da sbloccare.',true);return;}
+  if(x>att){toast('Puoi sbloccare al massimo '+fmtN(att)+'.',true);return;}
+  var nuovo=Math.round(att-x);
+  salva('sbloccati '+fmtN(x)+' di '+art+' (ordine '+o.num+' del '+o.data+')',function(d){
+    var oo=trovaOrd(d,key);if(!oo||!oo.righe[art])return;
+    if(nuovo<=0)delete oo.righe[art];else oo.righe[art].sospesa=nuovo;
+    storico(oo,art,'sblocca',Math.round(x));
+  });
+}
+function smTogliRiga(key,art){
+  var id='riga|'+art;
+  if(SM.armato!==id){SM.armato=id;render();return;}
+  salva('tolta sospensione '+art+' (ordine '+key.replace('|',' del ')+')',function(d){
+    var o=trovaOrd(d,key);if(o&&o.righe[art]){delete o.righe[art];storico(o,art,'tolta sospensione');}
+  },function(){if(!trovaOrd(SM.dati,key))SM.vista='lista';});
+}
+function smSospendiRiga(key,art){
+  salva('sospeso '+art+' (ordine '+key.replace('|',' del ')+')',function(d){
+    var o=trovaOrd(d,key);if(o&&!o.righe[art]){o.righe[art]={sospesa:null};storico(o,art,'sospeso tutto');}
+  });
+}
+function smRimuovi(key){
+  if(SM.armato!=='ordine'){SM.armato='ordine';render();return;}
+  salva('rimosso ordine '+key.replace('|',' del '),function(d){
+    d.ordini=d.ordini.filter(function(o){return keyOf(o)!==key;});
+  },function(){SM.vista='lista';SM.key=null;});
+}
+function smSalvaToken(){
+  var t=(document.getElementById('sm-token').value||'').trim();
+  if(!t){toast('Incolla il codice di accesso.',true);return;}
+  if(!lsSet(TOKEN_KEY,t)){toast('Questo browser non permette di salvare il codice (modalità anonima?).',true);return;}
+  SM.busy=true;render();
+  ghLoad().then(function(x){
+    SM.busy=false;SM.dati=x.dati;SM.sha=x.sha;SM.vista='lista';
+    document.getElementById('btn-sospesi').classList.remove('hidden');
+    render();toast('Accesso attivato su questo dispositivo.');
+  }).catch(function(e){lsSet(TOKEN_KEY,null);SM.busy=false;render();toast(e.message,true);});
+}
+function smEsci(){
+  if(SM.armato!=='esci'){SM.armato='esci';render();return;}
+  lsSet(TOKEN_KEY,null);
+  document.getElementById('btn-sospesi').classList.add('hidden');
+  chiudiSospesi();toast('Gestione disattivata su questo dispositivo.');
+}
+function vai(vista,key){SM.vista=vista;SM.key=key||null;SM.armato=null;SM.sblocco=null;render();document.getElementById('sm-body').scrollTop=0;}
+
+// ── Finestra ──
+function apriSospesi(){
+  if(!SM.dati)SM.dati=copia(SOSPESI&&SOSPESI.ordini?SOSPESI:{ordini:[]});
+  SM.vista=lsGet(TOKEN_KEY)?'lista':'accesso';SM.key=null;SM.armato=null;
+  document.getElementById('sosp-modal').classList.remove('hidden');
+  document.body.style.overflow='hidden';
+  render();
+  if(lsGet(TOKEN_KEY)){
+    ghLoad().then(function(x){SM.dati=x.dati;SM.sha=x.sha;render();})
+      .catch(function(e){toast(e.message,true);});
+  }
+}
+function chiudiSospesi(){
+  document.getElementById('sosp-modal').classList.add('hidden');
+  document.body.style.overflow='';
+}
+var toastT=null;
+function toast(msg,err){
+  var t=document.getElementById('sm-toast');
+  t.textContent=msg;t.className='sm-toast'+(err?' err':'');
+  clearTimeout(toastT);toastT=setTimeout(function(){t.classList.add('hidden');},err?6000:5000);
+}
+
+function render(){
+  var body=document.getElementById('sm-body'),back=document.getElementById('sm-back'),tit=document.getElementById('sm-title');
+  var v=SM.vista,html='';
+  back.classList.toggle('hidden',v==='lista'||v==='accesso');
+  back.onclick=function(){vai(v==='nuovo'?'aggiungi':'lista');};
+  var dis=SM.busy?' disabled':'';
+  if(v==='accesso'){
+    tit.textContent='Gestione ordini sospesi';
+    html='<p class="sm-msg">Per sospendere o sbloccare ordini da questo dispositivo incolla qui il <b>codice di accesso GitHub</b> (token) dedicato. Resta salvato solo su questo telefono o PC.</p>'
+      +'<input class="sm-input" id="sm-token" type="password" autocomplete="off" placeholder="github_pat_...">'
+      +'<button class="sm-btn"'+dis+' onclick="smSalvaToken()">'+(SM.busy?'Verifica in corso…':'Attiva su questo dispositivo')+'</button>';
+  }
+  else if(v==='lista'){
+    tit.textContent='Ordini sospesi';
+    var l=(SM.dati.ordini||[]).slice().sort(function(a,b){return dataOrd(b.data).localeCompare(dataOrd(a.data));});
+    html='<p class="sm-msg">Le quantità sospese non contano nell\'impegnato reale: diventano <b>impegnato virtuale</b>. Tocca un ordine per sbloccarne una parte.</p>'
+      +'<button class="sm-btn"'+dis+' onclick="vai(\'aggiungi\')">+ Aggiungi ordine sospeso</button>';
+    if(!l.length)html+='<p class="no-cli">Nessun ordine sospeso</p>';
+    l.forEach(function(o){
+      var k=keyOf(o),e=portafoglio()[k],tot=0,um='';
+      Object.keys(o.righe||{}).forEach(function(a){
+        tot+=effSosp(o.righe[a].sospesa,residuo(k,a));
+        if(!um&&e&&e.righe[a])um=e.righe[a].um;
+      });
+      html+='<div class="sm-card tap" onclick="vai(\'dettaglio\',\''+ja(k)+'\')"><div class="sm-row"><div>'
+        +'<p class="sm-t1">Ordine n. '+hx(o.num)+' del '+hx(o.data)+'</p>'
+        +'<p class="sm-t2">'+hx(o.cliente)+' · '+Object.keys(o.righe||{}).length+' articol'+(Object.keys(o.righe||{}).length===1?'o':'i')+'</p>'
+        +(e?'':'<span class="sm-badge">Non più in portafoglio</span>')
+        +'</div><p class="sm-qta">'+fmtN(tot)+'<small>sospesi '+hx(um)+'</small></p></div></div>';
+    });
+    html+='<button class="sm-link" onclick="smEsci()">'+(SM.armato==='esci'?'Tocca di nuovo per disattivare la gestione su questo dispositivo':'Disattiva la gestione su questo dispositivo')+'</button>';
+  }
+  else if(v==='aggiungi'){
+    tit.textContent='Aggiungi ordine';
+    html='<input class="sm-input" id="sm-cerca" type="search" placeholder="Numero ordine o cliente" value="'+hx(SM.q)+'">'
+      +'<div id="sm-risultati"></div>';
+    body.innerHTML=html;
+    var inp=document.getElementById('sm-cerca');
+    inp.addEventListener('input',function(){SM.q=inp.value;risultati();});
+    risultati();
+    if(!SM.q)setTimeout(function(){inp.focus();},50);
+    return;
+  }
+  else if(v==='nuovo'){
+    var e=portafoglio()[SM.key];
+    tit.textContent='Ordine n. '+(e?e.num:'');
+    if(!e){body.innerHTML='<p class="no-cli">Ordine non trovato</p>';return;}
+    var gia=trovaOrd(SM.dati,SM.key);
+    html='<p class="sm-t1">'+hx(e.cliente)+'</p><p class="sm-t2">Ordine n. '+hx(e.num)+' del '+hx(e.data)+'</p>'
+      +'<p class="sm-sec">Articoli da sospendere</p>';
+    e.arts.forEach(function(a){
+      var r=e.righe[a],on=!(gia&&gia.righe[a]);
+      html+='<div class="sm-check"><input type="checkbox" id="ck-'+hx(a)+'" data-art="'+hx(a)+'"'+(on?' checked':' disabled')+'>'
+        +'<label for="ck-'+hx(a)+'"><span class="sm-t1">'+hx(a)+'</span><br><span class="sm-t2">'+hx(r.des)+'</span></label>'
+        +'<span class="sm-qta">'+fmtN(r.qta)+'<small>'+hx(r.um)+(on?'':' · già sospeso')+'</small></span></div>';
+    });
+    html+='<p class="sm-sec">Nota (facoltativa)</p><input class="sm-input" id="sm-nota" placeholder="es. ritiri a tranche">'
+      +'<button class="sm-btn"'+dis+' onclick="smAggiungi(\''+ja(SM.key)+'\')">'+(SM.busy?'Salvataggio…':'Sospendi articoli selezionati')+'</button>'
+      +'<p class="sm-msg">Viene sospesa tutta la quantità residua. Potrai sbloccarne una parte quando il cliente la chiede.</p>';
+  }
+  else if(v==='dettaglio'){
+    var k=SM.key,o=trovaOrd(SM.dati,k),e2=portafoglio()[k];
+    if(!o){vai('lista');return;}
+    tit.textContent='Ordine n. '+o.num;
+    html='<p class="sm-t1">'+hx(o.cliente)+'</p><p class="sm-t2">Ordine n. '+hx(o.num)+' del '+hx(o.data)+(o.note?' · '+hx(o.note):'')+'</p>'
+      +(e2?'':'<p class="sm-err">Questo ordine non è più nel portafoglio di AdHoc (evaso o chiuso): puoi rimuoverlo.</p>')
+      +'<p class="sm-sec">Articoli sospesi</p>';
+    Object.keys(o.righe).forEach(function(a){
+      var res=residuo(k,a),s=effSosp(o.righe[a].sospesa,res),r=e2&&e2.righe[a];
+      html+='<div class="sm-card"><p class="sm-t1">'+hx(a)+'</p><p class="sm-t2">'+hx(r?r.des:'non più in portafoglio')+'</p>'
+        +'<div class="sm-nums"><div><b>'+fmtN(res)+'</b><span>Residuo ordine</span></div>'
+        +'<div class="sosp"><b>'+fmtN(s)+'</b><span>Sospeso</span></div>'
+        +'<div class="real"><b>'+fmtN(res-s)+'</b><span>Impegnato reale</span></div></div>';
+      if(SM.sblocco===a){
+        html+='<div class="sm-unlock"><input class="sm-input" id="sm-sblocca-qta" inputmode="numeric" placeholder="Quantità da sbloccare">'
+          +'<button class="sm-btn"'+dis+' onclick="smSblocca(\''+ja(k)+'\',\''+ja(a)+'\')">'+(SM.busy?'…':'Sblocca')+'</button></div>'
+          +'<p class="sm-msg">Sospesi oggi: '+fmtN(s)+' '+hx(r?r.um:'')+'. La quantità sbloccata torna nell\'impegnato reale.</p>';
+      } else if(s>0){
+        html+='<button class="sm-btn sec sm-inline"'+dis+' onclick="SM.sblocco=\''+ja(a)+'\';SM.armato=null;render();setTimeout(function(){var i=document.getElementById(\'sm-sblocca-qta\');if(i)i.focus();},30)">Sblocca una quantità</button>';
+      }
+      html+='<button class="sm-btn danger sm-inline'+(SM.armato==='riga|'+a?' armed':'')+'"'+dis+' onclick="smTogliRiga(\''+ja(k)+'\',\''+ja(a)+'\')">'
+        +(SM.armato==='riga|'+a?'Conferma: tutto nell\'impegnato':'Togli sospensione')+'</button></div>';
+    });
+    if(e2){
+      var altri=e2.arts.filter(function(a){return !o.righe[a];});
+      if(altri.length){
+        html+='<p class="sm-sec">Altri articoli dell\'ordine (impegnato normale)</p>';
+        altri.forEach(function(a){
+          var r=e2.righe[a];
+          html+='<div class="sm-card"><div class="sm-row"><div><p class="sm-t1">'+hx(a)+'</p><p class="sm-t2">'+hx(r.des)+'</p></div>'
+            +'<p class="sm-qta">'+fmtN(r.qta)+'<small>'+hx(r.um)+'</small></p></div>'
+            +'<button class="sm-btn sec sm-inline"'+dis+' onclick="smSospendiRiga(\''+ja(k)+'\',\''+ja(a)+'\')">Sospendi</button></div>';
+        });
+      }
+    }
+    var st=(o.storico||[]).slice(-15).reverse();
+    if(st.length){
+      html+='<p class="sm-sec">Storico</p>';
+      st.forEach(function(h){html+='<p class="sm-hist">'+hx(h.quando)+' · '+hx(h.art)+' · '+hx(h.azione)+(h.qta!=null?' '+fmtN(h.qta):'')+'</p>';});
+    }
+    html+='<button class="sm-btn danger'+(SM.armato==='ordine'?' armed':'')+'" style="margin-top:18px"'+dis+' onclick="smRimuovi(\''+ja(k)+'\')">'
+      +(SM.armato==='ordine'?'Tocca di nuovo per confermare':'Rimuovi l\'ordine dai sospesi')+'</button>';
+  }
+  body.innerHTML=html;
+}
+function risultati(){
+  var q=SM.q.trim().toUpperCase(),box=document.getElementById('sm-risultati'),P=portafoglio();
+  if(!q){box.innerHTML='<p class="sm-msg">Scrivi il numero d\'ordine o il nome del cliente.</p>';return;}
+  var hits=Object.keys(P).map(function(k){return P[k];}).filter(function(e){
+    return String(e.num).toUpperCase().indexOf(q)===0||e.cliente.toUpperCase().indexOf(q)>=0||e.cod.toUpperCase().indexOf(q)>=0;
+  }).sort(function(a,b){return dataOrd(b.data).localeCompare(dataOrd(a.data));}).slice(0,60);
+  if(!hits.length){box.innerHTML='<p class="no-cli">Nessun ordine trovato</p>';return;}
+  box.innerHTML=hits.map(function(e){
+    var gia=trovaOrd(SM.dati,e.key);
+    return '<div class="sm-card tap" onclick="vai(\''+(gia?'dettaglio':'nuovo')+'\',\''+ja(e.key)+'\')"><div class="sm-row"><div>'
+      +'<p class="sm-t1">Ordine n. '+hx(e.num)+' del '+hx(e.data)+'</p><p class="sm-t2">'+hx(e.cliente)+' · '+e.arts.length+' articol'+(e.arts.length===1?'o':'i')+'</p>'
+      +(gia?'<span class="sm-badge">Già sospeso</span>':'')+'</div><span class="cli-arrow">›</span></div></div>';
+  }).join('');
+}
+
+window.addEventListener('DOMContentLoaded',function(){
+  var attivo=!!lsGet(TOKEN_KEY);
+  if(attivo||location.hash==='#gestione')document.getElementById('btn-sospesi').classList.remove('hidden');
+  if(location.hash==='#gestione')apriSospesi();
+});
+window.addEventListener('hashchange',function(){
+  if(location.hash==='#gestione'){document.getElementById('btn-sospesi').classList.remove('hidden');apriSospesi();}
 });
 
 </script>

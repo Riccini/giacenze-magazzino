@@ -142,6 +142,12 @@ function DetailModal({ articolo, categoria, diametro, onClose }) {
             <div style={{fontSize:12,color:C.muted}}>Vendibile netto</div>
           </div>
         </div>
+        {articolo.sospeso > 0 && (
+          <div style={{border:'1px dashed '+C.sep,borderRadius:4,padding:'6px 10px',marginBottom:12,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+            <div style={{fontSize:12,color:C.muted}}>Ordini sospesi (impegnato virtuale, non conteggiato)</div>
+            <div style={{fontFamily:FONT_NUM,fontSize:16,color:C.muted}}>{fmt(articolo.sospeso)}</div>
+          </div>
+        )}
         {articolo.ordini && articolo.ordini.length>0 ? (
           <div>
             <div style={{fontSize:12,color:C.muted,textTransform:'uppercase',marginBottom:6}}>Ordini aperti · dal piu' recente al piu' vecchio</div>
@@ -156,7 +162,7 @@ function DetailModal({ articolo, categoria, diametro, onClose }) {
                     <div style={{color:C.ink2,fontSize:14}}>{o.cliente}</div>
                     <div style={{fontSize:12,color:C.muted,fontFamily:FONT_NUM}}>consegna: {fmtData(o.data_evasione)}</div>
                   </div>
-                  <span style={{fontFamily:FONT_NUM,color:C.ink2,fontSize:14}}>{fmt(o.quantita)}</span>
+                  <span style={{fontFamily:FONT_NUM,color:C.ink2,fontSize:14,textAlign:'right'}}>{fmt(o.quantita)}{o.sospesa > 0 && (<div style={{fontSize:11,color:C.muted}}>sosp. {fmt(o.sospesa)}</div>)}</span>
                 </div>
               ))}
             </div>
