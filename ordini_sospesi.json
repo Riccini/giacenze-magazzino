@@ -1,3 +1,125 @@
 {
- "ordini": []
+ "ordini": [
+  {
+   "num": "624",
+   "data": "16/02/2026",
+   "cliente": "CMC RAVENNA spa",
+   "righe": {
+    "53200E6S12.": {
+     "sospesa": null
+    },
+    "53250E6S16.": {
+     "sospesa": null
+    },
+    "53315E6S16.": {
+     "sospesa": null
+    },
+    "53400E6S16.": {
+     "sospesa": null
+    },
+    "54SC200300": {
+     "sospesa": null
+    },
+    "53MA250": {
+     "sospesa": null
+    },
+    "53AU125160": {
+     "sospesa": null
+    },
+    "53AU160200": {
+     "sospesa": null
+    },
+    "53AU200250": {
+     "sospesa": null
+    },
+    "53TR250200": {
+     "sospesa": null
+    },
+    "53CA200": {
+     "sospesa": null
+    },
+    "53CA250": {
+     "sospesa": null
+    },
+    "53CC200": {
+     "sospesa": null
+    },
+    "53CC250": {
+     "sospesa": null
+    }
+   },
+   "storico": [
+    {
+     "quando": "25/11/2026 09:47",
+     "art": "53200E6S12.",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 09:47",
+     "art": "53250E6S16.",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 09:47",
+     "art": "53315E6S16.",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 09:47",
+     "art": "53400E6S16.",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 09:47",
+     "art": "54SC200300",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 09:47",
+     "art": "53MA250",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 09:47",
+     "art": "53AU125160",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 09:47",
+     "art": "53AU160200",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 09:47",
+     "art": "53AU200250",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 09:47",
+     "art": "53TR250200",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 09:47",
+     "art": "53CA200",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 09:47",
+     "art": "53CA250",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 09:47",
+     "art": "53CC200",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 09:47",
+     "art": "53CC250",
+     "azione": "sospeso tutto"
+    }
+   ]
+  }
+ ]
 }
