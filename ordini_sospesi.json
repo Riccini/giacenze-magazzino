@@ -470,6 +470,23 @@
      "azione": "sospeso tutto"
     }
    ]
+  },
+  {
+   "num": "793",
+   "data": "27/02/2026",
+   "cliente": "VALTELLINA S.p.A.",
+   "righe": {
+    "0750TB35": {
+     "sospesa": null
+    }
+   },
+   "storico": [
+    {
+     "quando": "25/11/2026 14:42",
+     "art": "0750TB35",
+     "azione": "sospeso tutto"
+    }
+   ]
   }
  ]
 }
