@@ -315,6 +315,47 @@
      "azione": "sospeso tutto"
     }
    ]
+  },
+  {
+   "num": "1162",
+   "data": "18/03/2026",
+   "cliente": "NUOVA BAI SRL",
+   "righe": {
+    "31NT050": {
+     "sospesa": null
+    },
+    "31NT063": {
+     "sospesa": null
+    },
+    "31NT125": {
+     "sospesa": null
+    },
+    "063MF1012": {
+     "sospesa": null
+    }
+   },
+   "storico": [
+    {
+     "quando": "25/11/2026 10:50",
+     "art": "31NT050",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:50",
+     "art": "31NT063",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:50",
+     "art": "31NT125",
+     "azione": "sospeso tutto"
+    },
+    {
+     "quando": "25/11/2026 10:50",
+     "art": "063MF1012",
+     "azione": "sospeso tutto"
+    }
+   ]
   }
  ]
 }
