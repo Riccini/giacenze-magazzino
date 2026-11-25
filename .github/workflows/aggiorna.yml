@@ -6,6 +6,7 @@ on:
       - 'Stampa_saldi*.xlsx'
       - 'Stampa_portafoglio*.xlsx'
       - 'Lista Articoli per consultazione.xlsx'
+      - 'ordini_sospesi.json'
   workflow_dispatch:
 
 jobs:
